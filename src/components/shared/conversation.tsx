@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Account } from "./types";
 import { Feedback, Field } from "./ui";
@@ -10,6 +10,7 @@ import {
 } from "./conversation-types";
 import { useConversationState } from "./conversation-state";
 import { ConversationDiscovery } from "./conversation-discovery";
+import { useVisiblePoll } from "./visible-poll";
 import { useConversationDraft } from "./conversation-draft";
 
 type Props = {
@@ -44,6 +45,13 @@ function ScopedConversation({
   const position = useRef<{ height: number; top: number } | null>(null);
   const first = useRef(true);
   const confirmedMessage = useRef<string | null>(null);
+  const atLatest = useRef(true);
+  const lastMessage = useRef<string | null>(null);
+  const [newMessages, setNewMessages] = useState(false);
+  const automaticStatus = useVisiblePoll(
+    () => history.read("recent", true),
+    !history.denied,
+  );
   const data = history.data;
   const application = data?.applicationContext;
   const sendUnavailableReason =
@@ -72,6 +80,10 @@ function ScopedConversation({
         node.scrollTop = node.scrollHeight;
       }
       confirmedMessage.current = null;
+      position.current = null;
+      atLatest.current =
+        node.scrollHeight - node.scrollTop - node.clientHeight < 60;
+      setNewMessages(false);
       first.current = false;
     } else if (position.current) {
       node.scrollTop =
@@ -83,7 +95,11 @@ function ScopedConversation({
     } else if (first.current) {
       node.scrollTop = node.scrollHeight;
       first.current = false;
+    } else if (lastMessage.current !== data.items.at(-1)?.id) {
+      if (atLatest.current) node.scrollTop = node.scrollHeight;
+      else setNewMessages(true);
     }
+    lastMessage.current = data.items.at(-1)?.id ?? null;
   }, [data]);
   const canRecover =
     !!data &&
@@ -123,7 +139,7 @@ function ScopedConversation({
           : scope === "applicationId"
             ? "Private to the publisher, applicant and proposed participants listed in this application, including people who have not consented or later leave the team. Later team joiners and other applicants are not included. Chatting does not record consent or change bounty terms."
             : "Private to this order’s buyer and seller."}{" "}
-        Refresh to check for new messages.
+        {automaticStatus}
       </p>
       <Feedback error={history.error} />
       {history.denied && (
@@ -237,7 +253,28 @@ function ScopedConversation({
               Beginning of conversation · No older messages.
             </p>
           )}
+          {newMessages && (
+            <button
+              className="cb-button"
+              onClick={() => {
+                if (list.current)
+                  list.current.scrollTop = list.current.scrollHeight;
+                atLatest.current = true;
+                setNewMessages(false);
+              }}
+            >
+              New messages · Jump to latest
+            </button>
+          )}
           <ol
+            onScroll={() => {
+              const node = list.current;
+              if (node) {
+                atLatest.current =
+                  node.scrollHeight - node.scrollTop - node.clientHeight < 60;
+                if (atLatest.current) setNewMessages(false);
+              }
+            }}
             ref={list}
             className="cb-messages"
             aria-label="Message history"
@@ -275,9 +312,12 @@ function ScopedConversation({
               e.preventDefault();
               if (sendAllowed) {
                 const messageId = await draft.send();
-                if (messageId && scope === "applicationId")
+                if (messageId) {
+                  // A later send receipt supersedes an earlier history anchor.
+                  position.current = null;
                   confirmedMessage.current = messageId;
-                void history.read();
+                }
+                void history.read("recent", true);
               }
             }}
           >

@@ -1,0 +1,83 @@
+const { chromium } = require('/Users/huangyusen/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const origin = 'http://127.0.0.1:3020';
+const out = path.resolve('docs/evidence/first-entry-fix');
+(async () => {
+ const browser = await chromium.launch({ headless: true });
+ const checks = [];
+ try {
+  for (const viewport of [{width:1440,height:1000},{width:390,height:844}]) {
+   const context = await browser.newContext({viewport});
+   assert.equal((await context.cookies()).length,0);
+   const page = await context.newPage();
+   const errors=[];page.on('pageerror',e=>errors.push(e.message));
+   await page.goto(origin+'/?view=market');
+   const student=page.getByRole('button',{name:'Enter as sample student'});
+   await student.waitFor();
+   await page.getByLabel('University email').fill('first-entry@berkeley.edu');
+   assert.ok(await page.getByText('Real email delivery is unavailable in this local preview, including Berkeley', {exact:false}).isVisible());
+   assert.equal(await page.getByText('This email domain is not supported.',{exact:false}).count(),0);
+   assert.ok(await page.getByRole('button',{name:'Real email delivery unavailable'}).isDisabled());
+   await page.getByLabel('University email').fill('');
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
+   await page.screenshot({path:path.join(out,`entry-${viewport.width}.png`),fullPage:true});
+   await student.click();
+   await page.getByRole('heading',{name:'The campus marketplace.'}).waitFor();
+   await page.getByRole('link',{name:'View item →'}).first().waitFor();
+   assert.equal(new URL(page.url()).searchParams.get('view'),'market');
+   assert.ok(await page.getByText('Sample account',{exact:false}).first().isVisible());
+   const cookies=await context.cookies();const session=cookies.find(c=>c.name==='campus_session');
+   assert.ok(session?.httpOnly);assert.equal(session.sameSite,'Strict');
+   assert.equal(await page.evaluate(()=>document.cookie.includes('campus_session')),false);
+   await page.screenshot({path:path.join(out,`market-${viewport.width}.png`),fullPage:false});
+   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Bounties',exact:true}).click();
+   await page.waitForURL('**/?view=bounties');
+   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Marketplace',exact:true}).click();
+   await page.getByRole('link',{name:'View item →'}).first().click();
+   await page.waitForURL(/view=market.*id=/);
+   const detailUrl=page.url();
+   await page.getByRole('button',{name:'Sign out',exact:true}).click();
+   await student.waitFor();
+   assert.equal(page.url(),detailUrl);
+   assert.equal((await context.cookies()).filter(c=>c.name==='campus_session').length,0);
+   const stale=await context.request.get(origin+'/api/v1/me',{headers:{cookie:`campus_session=${session.value}`}});
+   assert.equal(stale.status(),401);
+   await page.getByRole('button',{name:'Enter as sample publisher'}).click();
+   await page.getByText('Welcome,').waitFor();
+   assert.equal(page.url(),detailUrl);
+   assert.ok((await page.locator('.cb-account-line').innerText()).includes('Professor'));
+   await page.getByRole('button',{name:'Sign out',exact:true}).click();
+   await student.waitFor();
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
+   assert.deepEqual(errors,[]);
+   checks.push({viewport,initialCookies:0,studentMarket:true,publisherDetailReentry:true,navigation:true,logoutRevoked:true,httpOnly:true,sameSiteStrict:true,noHorizontalOverflow:true,pageErrors:0});
+   await context.close();
+  }
+  const context=await browser.newContext();
+  for(const body of [{role:'admin'},{role:'student',email:'private@berkeley.edu'},{role:'publisher',userId:'arbitrary'}]) {
+   const r=await context.request.post(origin+'/api/v1/auth/preview',{headers:{origin},data:body});assert.equal(r.status(),422);assert.ok(!r.headers()['set-cookie']);
+  }
+  const foreign=await context.request.post(origin+'/api/v1/auth/preview',{headers:{origin:'https://evil.test'},data:{role:'student'}});assert.equal(foreign.status(),403);
+  const realEmail=await context.request.post(origin+'/api/v1/auth/challenges',{headers:{origin},data:{email:'first-entry@berkeley.edu'}});assert.equal(realEmail.status(),503);assert.equal((await realEmail.json()).code,'preview_email_unavailable');
+  const page=await context.newPage();
+  await page.goto(origin+'/?view=market');
+  await page.getByRole('button',{name:'Enter as sample student'}).click();
+  await page.getByRole('heading',{name:'The campus marketplace.'}).waitFor();
+  const previous=(await context.cookies()).find(c=>c.name==='campus_session').value;
+  const rotation=await context.request.post(origin+'/api/v1/auth/preview',{headers:{origin},data:{role:'publisher'}});
+  assert.equal(rotation.status(),200);
+  assert.deepEqual(Object.keys(await rotation.json()).sort(),['sample','user']);
+  const oldSession=await context.request.get(origin+'/api/v1/me',{headers:{cookie:`campus_session=${previous}`}});
+  assert.equal(oldSession.status(),401);
+  await page.reload();await page.getByText('Welcome,').waitFor();
+  assert.ok((await page.locator('.cb-account-line').innerText()).includes('Professor'));
+  await page.getByRole('button',{name:'Sign out',exact:true}).click();
+  await page.getByRole('button',{name:'Enter as sample student'}).waitFor();
+  checks.push({existingSessionRotation:true,oldSessionRevoked:true,noTokenInResponseBody:true});
+  await context.close();
+  fs.writeFileSync(path.join(out,'browser-results.json'),JSON.stringify({passed:true,checks,unsupportedInputsRejected:true,foreignOriginRejected:true,realEmailExplained:true},null,2));
+  console.log(JSON.stringify({passed:true,checks,unsupportedInputsRejected:true,foreignOriginRejected:true,realEmailExplained:true},null,2));
+ } finally {await browser.close();}
+})().catch(error=>{console.error(error.message);process.exitCode=1;});

@@ -70,6 +70,9 @@ const bodies = {
     displayName: str,
   }),
   "/auth/session": empty,
+  "/auth/preview": object({
+    role: { enum: ["student", "applicant", "publisher"] },
+  }),
   "/teams": z.toJSONSchema(createTeamSchema),
   "/teams/{id}/context": z.toJSONSchema(teamContextUpdateSchema),
   "/teams/{id}/invitations": z.toJSONSchema(teamTargetSchema),
@@ -129,6 +132,7 @@ async function walk(dir, prefix = "") {
           isPublic = [
             "/health",
             "/institutions",
+            "/auth/preview",
             "/auth/challenges",
             "/auth/sessions",
           ].includes(path),
@@ -315,6 +319,21 @@ async function walk(dir, prefix = "") {
               schema: { type: "string", maxLength: 512 },
             },
           );
+        if (verb === "GET" && path === "/conversations/inbox")
+          parameters.push(
+            {
+              name: "limit",
+              in: "query",
+              schema: { type: "integer", minimum: 1, maximum: 50, default: 30 },
+            },
+            {
+              name: "cursor",
+              in: "query",
+              description:
+                "Opaque actor-bound continuation ordered by creation timestamp, scope type and UUID descending. Use unchanged.",
+              schema: { type: "string", maxLength: 512 },
+            },
+          );
         if (verb === "GET" && path === "/conversations/search")
           parameters.push({
             name: "q",
@@ -363,7 +382,20 @@ async function walk(dir, prefix = "") {
                   "Agreement participants retain access independently of current team membership. New fulfillment commands require an active account and current campus verification; they do not require current student application eligibility. Submission versions are immutable; milestone revision advances with each new submission or review. Review commands bind the exact submissionId, expectedVersion and expectedRevision; outdated tuples return 409 stale_revision. Only the publisher can request changes or accept. Feedback is tied to the reviewed submission and does not amend agreement terms. Commands return current resource state plus the original operation receipt on idempotent retry. Accepting the final outstanding milestone completes fulfillment. The explicit completion command supports active historical agreements whose nonempty milestone set is already entirely accepted. Completion never initiates payment, settlement or a fund transfer. History reads are available to non-locked agreement participants even after eligibility expires; locked accounts cannot read it.",
               }
             : {}),
-          ...(path.startsWith("/conversations")
+          ...(path === "/auth/preview"
+            ? {
+                description:
+                  "Strictly guarded disposable loopback fixture entry only, never production or general development login. GET reports enabled. POST chooses only fixed student=Alex, applicant=Sam or publisher=Professor identities, revokes current cookie session and sets a new HttpOnly session cookie; no token in JSON. Unavailable POST returns404. Exact environment, fixture metadata and active verified identities rechecked.",
+              }
+            : {}),
+          ...(path === "/conversations/inbox"
+            ? {
+                description:
+                  "Authenticated inbox of current actor's RLS-authorized applications (including publisher and frozen members), agreements and orders, including terminal history. No scope selector. Strict limit/cursor query only; duplicate keys rejected. title is null when catalog access is unavailable. No bodies, contacts, presence or read receipts. Paginated by immutable creation time, type and UUID descending, not latest activity. GET has no side effects.",
+              }
+            : {}),
+          ...(path.startsWith("/conversations") &&
+          path !== "/conversations/inbox"
             ? {
                 description:
                   "Authorized private conversation pages. Agreement participants are the publisher and frozen signers; orders contain buyer and seller. Application discussion includes publisher, applicant and frozen application members including unconfirmed proposed participants; later team joiners are excluded. GET /conversations adds applicationContext only for application scope. New sends require applied/invited plus open task, active account and current campus membership; consent/student eligibility are not messaging requirements. Accepted application context links only its exact authorized agreement; messages stay in their original scope. Current editable display names are not verified identity. Expired/restricted accounts retain history, locked accounts are denied; unknown/unauthorized scope is 404. Exactly one scope, strict query keys and cursor validation. Messages use descending exact timestamp and UUID; participant UUIDs ascend independently. Initial roster is bounded100 with full continuation. GET has no side effects. Refresh the first page for new messages; preserve the oldest cursor for older history.",
@@ -418,90 +450,132 @@ async function walk(dir, prefix = "") {
               content: {
                 "application/json": {
                   schema:
-                    path === "/conversations/search" && verb === "GET"
-                      ? { $ref: "#/components/schemas/ConversationSearchPage" }
-                      : path === "/conversations/message" && verb === "GET"
-                        ? {
-                            $ref: "#/components/schemas/ConversationMessageWindow",
-                          }
-                        : path === "/conversations" && verb === "GET"
-                          ? { $ref: "#/components/schemas/ConversationPage" }
-                          : path === "/conversations/participants" &&
-                              verb === "GET"
+                    path === "/auth/preview"
+                      ? verb === "GET"
+                        ? object({ enabled: { type: "boolean" } })
+                        : object({
+                            sample: { const: true },
+                            user: object({
+                              id: uuid,
+                              display_name: str,
+                              account_status: { const: "active" },
+                            }),
+                          })
+                      : path === "/conversations/inbox" && verb === "GET"
+                        ? object({
+                            items: {
+                              type: "array",
+                              items: object({
+                                id: uuid,
+                                type: {
+                                  enum: ["application", "agreement", "order"],
+                                },
+                                state: str,
+                                title: { anyOf: [str, { type: "null" }] },
+                                role: str,
+                                createdAt: {
+                                  type: "string",
+                                  format: "date-time",
+                                },
+                              }),
+                            },
+                            limit: { type: "integer", minimum: 1, maximum: 50 },
+                            nextCursor: { anyOf: [str, { type: "null" }] },
+                          })
+                        : path === "/conversations/search" && verb === "GET"
+                          ? {
+                              $ref: "#/components/schemas/ConversationSearchPage",
+                            }
+                          : path === "/conversations/message" && verb === "GET"
                             ? {
-                                $ref: "#/components/schemas/ConversationParticipantsPage",
+                                $ref: "#/components/schemas/ConversationMessageWindow",
                               }
-                            : path === "/applications/{id}" && verb === "GET"
+                            : path === "/conversations" && verb === "GET"
                               ? {
-                                  $ref: "#/components/schemas/ApplicationHistory",
+                                  $ref: "#/components/schemas/ConversationPage",
                                 }
-                              : path === "/notifications" && verb === "GET"
+                              : path === "/conversations/participants" &&
+                                  verb === "GET"
                                 ? {
-                                    $ref: "#/components/schemas/NotificationPage",
+                                    $ref: "#/components/schemas/ConversationParticipantsPage",
                                   }
-                                : path === "/notifications/{id}/read" &&
-                                    verb === "POST"
+                                : path === "/applications/{id}" &&
+                                    verb === "GET"
                                   ? {
-                                      $ref: "#/components/schemas/Notification",
+                                      $ref: "#/components/schemas/ApplicationHistory",
                                     }
-                                  : path === "/agreements" && verb === "GET"
+                                  : path === "/notifications" && verb === "GET"
                                     ? {
-                                        type: "array",
-                                        items: {
-                                          $ref: "#/components/schemas/AgreementOverview",
-                                        },
+                                        $ref: "#/components/schemas/NotificationPage",
                                       }
-                                    : path === "/tasks/{id}" && verb === "GET"
+                                    : path === "/notifications/{id}/read" &&
+                                        verb === "POST"
                                       ? {
-                                          type: "object",
-                                          properties: {
-                                            related_agreement: {
-                                              anyOf: [
-                                                object({
-                                                  id: uuid,
-                                                  state: str,
-                                                }),
-                                                { type: "null" },
-                                              ],
-                                              description:
-                                                "Current user's RLS-visible agreement only; null for outsiders. Task status is recruitment state, not fulfillment state.",
-                                            },
-                                          },
-                                          required: ["related_agreement"],
+                                          $ref: "#/components/schemas/Notification",
                                         }
-                                      : verb === "POST" &&
-                                          (path.startsWith("/milestones/") ||
-                                            path ===
-                                              "/agreements/{id}/completion")
+                                      : path === "/agreements" && verb === "GET"
                                         ? {
-                                            $ref: "#/components/schemas/FulfillmentResult",
+                                            type: "array",
+                                            items: {
+                                              $ref: "#/components/schemas/AgreementOverview",
+                                            },
                                           }
-                                        : path === "/milestones/{id}/reviews" &&
+                                        : path === "/tasks/{id}" &&
                                             verb === "GET"
                                           ? {
-                                              type: "array",
-                                              items: {
-                                                $ref: "#/components/schemas/MilestoneReview",
+                                              type: "object",
+                                              properties: {
+                                                related_agreement: {
+                                                  anyOf: [
+                                                    object({
+                                                      id: uuid,
+                                                      state: str,
+                                                    }),
+                                                    { type: "null" },
+                                                  ],
+                                                  description:
+                                                    "Current user's RLS-visible agreement only; null for outsiders. Task status is recruitment state, not fulfillment state.",
+                                                },
                                               },
+                                              required: ["related_agreement"],
                                             }
-                                          : path === "/teams/{id}/candidates"
-                                            ? object({
-                                                user_id: uuid,
-                                                display_name: str,
-                                              })
-                                            : path === "/teams" &&
+                                          : verb === "POST" &&
+                                              (path.startsWith(
+                                                "/milestones/",
+                                              ) ||
+                                                path ===
+                                                  "/agreements/{id}/completion")
+                                            ? {
+                                                $ref: "#/components/schemas/FulfillmentResult",
+                                              }
+                                            : path ===
+                                                  "/milestones/{id}/reviews" &&
                                                 verb === "GET"
                                               ? {
                                                   type: "array",
                                                   items: {
-                                                    $ref: "#/components/schemas/TeamSummary",
+                                                    $ref: "#/components/schemas/MilestoneReview",
                                                   },
                                                 }
-                                              : path.startsWith("/teams")
-                                                ? {
-                                                    $ref: "#/components/schemas/Team",
-                                                  }
-                                                : {},
+                                              : path ===
+                                                  "/teams/{id}/candidates"
+                                                ? object({
+                                                    user_id: uuid,
+                                                    display_name: str,
+                                                  })
+                                                : path === "/teams" &&
+                                                    verb === "GET"
+                                                  ? {
+                                                      type: "array",
+                                                      items: {
+                                                        $ref: "#/components/schemas/TeamSummary",
+                                                      },
+                                                    }
+                                                  : path.startsWith("/teams")
+                                                    ? {
+                                                        $ref: "#/components/schemas/Team",
+                                                      }
+                                                    : {},
                 },
               },
             },

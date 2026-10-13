@@ -29,6 +29,7 @@ export function useConversationState(
   const [busy, setBusy] = useState<"recent" | "older" | "people" | null>(
     "recent",
   );
+  const [backgroundError, setBackgroundError] = useState<Error | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [denied, setDenied] = useState(false);
   const [writable, setWritable] = useState(false);
@@ -90,7 +91,7 @@ export function useConversationState(
     };
   }, [accountId, id, scope, observeAccount]);
   const read = useCallback(
-    async (mode: "recent" | "older" | "people" = "recent") => {
+    async (mode: "recent" | "older" | "people" = "recent", silent = false) => {
       if (running.current) return;
       const previous = current.current;
       if (mode === "older" && !previous?.nextCursor) return;
@@ -98,11 +99,13 @@ export function useConversationState(
       running.current = true;
       authorityVersion.current++;
       const token = generation.current;
-      setBusy(mode);
-      if (scope === "applicationId") setWritable(false);
-      setRevision((n) => n + 1);
-      setError(null);
-      setNotice("");
+      if (!silent) {
+        setBusy(mode);
+        if (scope === "applicationId") setWritable(false);
+        setRevision((n) => n + 1);
+        setError(null);
+        setNotice("");
+      }
       try {
         const me = await request<Account>("me");
         if (token !== generation.current) return;
@@ -161,8 +164,13 @@ export function useConversationState(
           // even >30 arrivals cannot create an invisible gap between old and new.
           if (mode === "recent" && previous?.items.length) {
             const known = new Set(previous.items.map((m) => m.id));
-            let edge = page.nextCursor;
+            let edge = page.nextCursor,
+              pages = 1;
             while (edge && !incoming.some((m) => known.has(m.id))) {
+              if (silent && pages++ >= 3)
+                throw new Error(
+                  "Many new messages arrived. Use Refresh messages to load the complete gap.",
+                );
               const more = await request<ConversationPage>(
                 `conversations?${query}&cursor=${encodeURIComponent(edge)}`,
               );
@@ -207,13 +215,16 @@ export function useConversationState(
         current.current = next;
         setData(next);
         setDenied(false);
-        setNotice(
-          mode === "people"
-            ? "More participants loaded."
-            : mode === "older"
-              ? "Older messages loaded. Your reading position is preserved."
-              : "Latest messages checked. Refresh again for new activity.",
-        );
+        setBackgroundError(null);
+        setError(null);
+        if (!silent)
+          setNotice(
+            mode === "people"
+              ? "More participants loaded."
+              : mode === "older"
+                ? "Older messages loaded. Your reading position is preserved."
+                : "Latest messages checked. Automatic updates continue while this tab is visible.",
+          );
         return true;
       } catch (cause) {
         if (token !== generation.current) return;
@@ -221,15 +232,22 @@ export function useConversationState(
           cause instanceof ApiError &&
           [401, 403, 404].includes(cause.status)
         ) {
+          generation.current++;
+          running.current = false;
           current.current = null;
           setData(null);
           setDenied(true);
+          setWritable(false);
+          setBusy(null);
+          setRevision((n) => n + 1);
         }
-        setError(
+        setWritable(false);
+        (silent ? setBackgroundError : setError)(
           cause instanceof Error
             ? cause
             : new Error("Conversation could not be loaded."),
         );
+        return false;
       } finally {
         if (token === generation.current) {
           running.current = false;
@@ -273,7 +291,7 @@ export function useConversationState(
   return {
     data: scope === "applicationId" && (busy || error) ? null : data,
     busy,
-    error,
+    error: error ?? backgroundError,
     denied,
     writable,
     campusVerified,

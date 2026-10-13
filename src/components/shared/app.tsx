@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { GraduationCap, Plus } from "lucide-react";
 import { ApiError, useMutation, useResource } from "./api";
+import { Messages } from "./messages";
+import { SampleSwitcher } from "./sample-switcher";
 import { SignIn } from "./auth";
 import { Catalog } from "./catalog";
 import { Publish } from "./publish";
@@ -24,6 +26,7 @@ const navigation = [
   ["bounties", "Bounties"],
   ["market", "Marketplace"],
   ["workspace", "Workspace"],
+  ["messages", "Messages"],
   ["notifications", "Notifications"],
   ["teams", "Teams"],
   ["saved", "Saved"],
@@ -38,7 +41,8 @@ export default function SharedCampus({
 }) {
   const query = useSearchParams(),
     router = useRouter(),
-    me = useResource<Account>("me");
+    me = useResource<Account>("me"),
+    preview = useResource<{ enabled: boolean }>(local ? "auth/preview" : null);
   const view = query.get("view") || "bounties",
     id = query.get("id"),
     kind = query.get("kind") === "product" ? "product" : "task";
@@ -108,7 +112,9 @@ export default function SharedCampus({
         Skip to main content
       </a>
       <aside className="cb-preview" aria-label="Preview status">
-        {local ? "Local development" : "Preview"} · Payments are not enabled.
+        {preview.data?.enabled
+          ? "Local sample accounts · No real university verification, external email or actual payment."
+          : `${local ? "Local development" : "Preview"} · Payments are not enabled.`}
       </aside>
       <header className="cb-header">
         <Link className="cb-brand" href="/?view=bounties">
@@ -174,6 +180,7 @@ export default function SharedCampus({
         ) : me.error instanceof ApiError && me.error.status === 401 ? (
           <SignIn
             local={local}
+            sample={preview.data?.enabled === true}
             expired={expired}
             onSuccess={() => {
               setExpired(false);
@@ -187,15 +194,24 @@ export default function SharedCampus({
             <div className="cb-account-line">
               <span>
                 Welcome, <strong>{account.display_name}</strong>
+                {preview.data?.enabled && " · Sample account"}
               </span>
               <span>
                 <Link href="/?view=account#student-eligibility">
                   {account.can_apply
-                    ? "Student eligibility verified"
+                    ? preview.data?.enabled
+                      ? "Sample student eligibility"
+                      : "Student eligibility verified"
                     : "Check student eligibility"}
                 </Link>
               </span>
             </div>
+            {preview.data?.enabled && (
+              <SampleSwitcher account={account} onSuccess={me.reload} />
+            )}
+            {view === "messages" && (
+              <Messages key={account.id} accountId={account.id} />
+            )}
             {(!account.campus_verified ||
               account.account_status !== "active") && (
               <p className="cb-alert">

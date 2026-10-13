@@ -1,3 +1,4 @@
+import { conversationInboxModule } from "./conversation-inbox.mjs";
 import { notificationModule } from "./notifications.mjs";
 import { teamModule } from "./teams.mjs";
 import { taskModule } from "./tasks.mjs";
@@ -11,6 +12,7 @@ export function createMarket(store, options = {}) {
     ...taskModule(store),
     ...goodsModule(store),
     ...conversationModule(store),
+    ...conversationInboxModule(store),
     ...accountModule(store, options),
   };
 }

@@ -43,6 +43,7 @@ export async function request<T>(
   }
   if (
     path === "auth/sessions" ||
+    (path === "auth/preview" && options.method === "POST") ||
     (path === "auth/session" && options.method === "DELETE")
   ) {
     try {

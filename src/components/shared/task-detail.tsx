@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 import { useMutation, useResource } from "./api";
 import {
   money,
@@ -22,6 +23,8 @@ export function TaskDetail({
   account: Account;
   openAgreement: (id: string) => void;
 }) {
+  const router = useRouter();
+  const proposalInput = useRef<HTMLTextAreaElement>(null);
   const task = useResource<Task>(`tasks/${id}`),
     applications = useResource<Application[]>(`tasks/${id}/applications`),
     teams = useResource<Team[]>(account.can_apply ? "teams" : null),
@@ -32,7 +35,7 @@ export function TaskDetail({
     [teamId, setTeamId] = useState("");
   const t = task.data,
     isSaved = saved.data?.some((v) => v.id === id),
-    alreadyApplied = applications.data?.some(
+    alreadyApplied = applications.data?.find(
       (a) =>
         a.applicant_id === account.id &&
         ["applied", "invited", "accepted"].includes(a.state),
@@ -70,6 +73,50 @@ export function TaskDetail({
           </button>
         </div>
       </div>
+      <section className="cb-panel" aria-label="Apply or manage bounty">
+        {t.owner_id === account.id ? (
+          <>
+            <h2>You published this bounty</h2>
+            <p>
+              You cannot apply to your own listing. Review applicants and open
+              their chats below.
+            </p>
+            <a className="cb-button cb-primary" href="#bounty-applications">
+              Review applications
+            </a>
+          </>
+        ) : alreadyApplied ? (
+          <>
+            <h2>Your application is {alreadyApplied.state}</h2>
+            <Link
+              className="cb-button cb-primary"
+              href={`/?view=workspace&resource=application&id=${alreadyApplied.id}`}
+            >
+              Chat about your application
+            </Link>
+          </>
+        ) : t.status === "open" && account.can_apply ? (
+          <>
+            <h2>Interested in this bounty?</h2>
+            <button
+              className="cb-button cb-primary"
+              disabled={!applications.data}
+              onClick={() => {
+                proposalInput.current?.focus();
+                proposalInput.current?.scrollIntoView({ block: "center" });
+              }}
+            >
+              Apply to this bounty
+            </button>
+          </>
+        ) : (
+          <p>
+            {t.status !== "open"
+              ? "Applications are closed. Existing conversations remain in Messages."
+              : "Student eligibility is required to apply."}
+          </p>
+        )}
+      </section>
       <Feedback {...save} />
       {t.status !== "open" && (
         <section className="cb-panel" aria-label="Recruitment and fulfillment">
@@ -117,7 +164,7 @@ export function TaskDetail({
               ))}
             </ol>
           </div>
-          <h2>
+          <h2 id="bounty-applications" tabIndex={-1}>
             {t.owner_id === account.id
               ? t.status === "open"
                 ? "Applications to review"
@@ -198,14 +245,17 @@ export function TaskDetail({
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
-                const r = await mutation.run(
+                const r = await mutation.run<{ id: string }>(
                   `tasks/${id}/applications`,
                   { proposal, teamId: teamId || null },
-                  "Application sent. Track it in your workspace.",
+                  "Application sent. Opening your private discussion.",
                 );
                 if (r) {
                   applications.reload();
                   setProposal("");
+                  router.push(
+                    `/?view=workspace&resource=application&id=${r.id}`,
+                  );
                 }
               }}
             >
@@ -240,6 +290,7 @@ export function TaskDetail({
                 help="Describe your approach, relevant experience and how you’ll meet the target date and each milestone’s acceptance criteria."
               >
                 <textarea
+                  ref={proposalInput}
                   required
                   maxLength={10000}
                   rows={6}
