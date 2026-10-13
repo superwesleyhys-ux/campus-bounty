@@ -1,0 +1,250 @@
+{
+  "reviewedCommit": "5ef1b68b55352786de7ef19895833c9f70936824",
+  "returnedZipSha256": "7b5addb639e4166527a9b5fdecc70a80c297b7acb517d02e3715f8de41d46aeb",
+  "files": [
+    {
+      "file": "auth/auth-independent.test.mjs",
+      "originalSha256": "584872326ce2924b6d42a83060caf6a8fb47f1b6f1516327a4282596869e8404",
+      "adaptation": "Local import root and historical candidate log label only; assertions unchanged. 2026-10-13 provenance audit: the previous adapted hash did not match the existing clean tracked checkout file. File contents were not changed in this round; current bytes were rehashed and the prior recorded hash is retained in previousRecordedAdaptedSha256. The cause of the earlier mismatch was not established.",
+      "adaptedSha256": "11b5d69b5a8c1c70922146e27f4d9581671928a5dfb8a16de1df2bd192917ad5",
+      "previousRecordedAdaptedSha256": "4cef83f09c071db032e5966160559e2e2de51bc31fe51fcfe8343681a3193137"
+    },
+    {
+      "file": "tasks/task-adversarial.test.mjs",
+      "originalSha256": "83c6fd0b2fbb9740236f25463dfb9edc9dc4706ab98e061ff2f739d99550864c",
+      "adaptation": "Local import root and historical candidate log label only; assertions unchanged. 2026-10-13 team lifecycle: add required expectedRevision from current Team reads to invite/accept calls only, preserving all original adversarial assertions, including outsider not_found. 2026-10-13 round5: create fixtures explicitly supply complete synthetic team context before inviting; all prior adversarial assertions are preserved. 2026-10-13 round6 implementer adaptation: submission inputs now carry independent expectedRevision; acceptance pins submissionId, expectedVersion and expectedRevision; response assertions use the new current milestone/submission/receipt shape. Existing funding, outsider, consent, frozen-member, concurrent-writer, stale-acceptance and idempotency denial intentions remain. Independently executed after the adaptation.",
+      "adaptedSha256": "39c9ca1d1fd809a9dc1f3c29127e71bd7c9d8d270812c776c4d583cb570bbc85",
+      "round4AdaptedSha256": "671403e7cca3c42683f37c9ed033d6c6ff0b09fa5fa42e0e022ec0f1a69fd532",
+      "round5AdaptedSha256": "421559d4e0f0b9d482b3932fb8190ad1bf76a3a07863aa6ca5249507365158f8"
+    },
+    {
+      "file": "tasks/task-input-validation.test.mjs",
+      "originalSha256": "dec2962b3c1e9f8ce2ff82a7b307576d3792082362c9fe9dee0fe47431eaca14",
+      "adaptation": "Local import root and historical candidate log label only; assertions unchanged. 2026-10-13 round6 implementer adaptation: formerly valid control inputs now include required expectedRevision and acceptance submissionId, preserving the invalid-number/content/extra-field cases and transaction-boundary sentinel assertions. Independently executed after the adaptation.",
+      "adaptedSha256": "629f8e37bb494a9628a82723b41cd40e946d2fc1e16694b362a9a0e7f94d4f26",
+      "round5AdaptedSha256": "0faa21fe71b1fdcff54628b1c19c72236a54635f1b64d00b43448de74277e2b5"
+    },
+    {
+      "file": "goods/checks.test.mjs",
+      "originalSha256": "a232a995174aa6a5d6b622ead94a72916d035be18fe1af15acbe24dd243d4eda",
+      "adaptation": "Local import root and historical candidate log label only; assertions unchanged. Added implementer assertions: consumed quote retries after expiration must return the existing order without stock loss.",
+      "adaptedSha256": "b99e996b1ba1d6a4def864f3caf98a08c7037519b633f58bd7e9e9e81107b3dd"
+    },
+    {
+      "file": "goods/quote-expiry-lock.test.mjs",
+      "originalSha256": "beb6917db88697a47d0cdb97823ad3db577b0348848ac2fe940395865c98d561",
+      "adaptation": "Local import root and historical candidate log label only; assertions unchanged. Replaced privileged cross-role query/wait-text probe with pg_blocking_pids; no extra database privileges. Original failed probe retained in independent-before.log.",
+      "adaptedSha256": "64eca82b96dbe76d3fb663951b3fa190f48cf674a71a64e76e7da1d9e7bfec8b"
+    },
+    {
+      "file": "rls/rls-context.test.mjs",
+      "originalSha256": "41332d866224a5516607c0cdf61163089cda65ac6a628698addde92caad4a6e1",
+      "adaptation": "Local import root and historical candidate log label. 2026-10-12: exact search_path expectation updated only for the two new inventory functions to include pg_temp last, following PostgreSQL guidance; original exact path for other functions and all privilege assertions unchanged. 2026-10-13: extend the exact pg_temp-last path list to five eligibility functions (including the replaced eligible_student); other paths and role ACL assertions remain unchanged. 2026-10-13 team lifecycle: required expectedRevision is populated from current Team reads for existing invite/accept calls. SECURITY DEFINER inventory now checks all 25 exact signatures; seven new/replaced team functions are explicitly listed for pg_temp-last search_path. Existing auth/app/worker ACL assertions are unchanged and PUBLIC execute denial is additionally asserted. 2026-10-13 round5: create fixture supplies complete context, and exact SECURITY DEFINER inventory expands from 25 to 27 signatures with create_team_with_context(text,jsonb) and set_team_context(uuid,integer,jsonb). Exact pg_temp-last paths and all existing ACL denials are retained. 2026-10-13 round6 implementer adaptation: exact SECURITY DEFINER inventory extends from 27 to 35 signatures for three application trust functions and five fulfillment functions; in_agreement and new functions explicitly require pg_temp last. Existing PUBLIC/auth/worker denials remain. Submission fixture adds expectedRevision and checks the new submission response shape. Independently executed after the adaptation. 2026-10-13 round7 independent-reviewer adaptation, explicitly authorized by root after two old compatibility assertions failed: exact SECURITY DEFINER inventory expands from 35 to 45 signatures. The nine new internal notification definer functions explicitly deny campus_app execution; mark_notification_read remains the only new app-executable definer. All ten additions require the exact pg_catalog,campus,pg_temp search path. PUBLIC/auth/worker denials remain exact; all older runtime assertions unchanged. 2026-10-13 round8 independent-reviewer adaptation: Root explicitly expanded reviewer ownership after full-suite 224/225 inventory-only failure. Exact SECURITY DEFINER list expands 45 to 47 with authorize_message_scope(text, uuid), conversation_people(text, uuid); both require exact pg_temp-last search path and retain app-only runtime EXECUTE/PUBLIC denial. Adds singleton exact guard_message_send() invoker/private ACL assertion; all old assertions retained.. Original file and precise diff retained in docs/evidence/interaction-round8/independent/; existing assertions preserved. Round10 Task2 separate-author adapter, pending independent review: add only the two approved014 application conversation definers to exact inventory and temporary-schema-last path list; all grant and trigger checks retained.",
+      "adaptedSha256": "357498400c708a8656aa26abc9c10e5605fd521c4791e14720bd80886a9bd9f5",
+      "round4AdaptedSha256": "19f72589212d762c8ff70e24c36da989a1dae794ad75b56a7264d0f7c848e21a",
+      "round5AdaptedSha256": "58b492fa4116619012ed493384250e46ee3ef551cf428c11da5be71ff2f634ee",
+      "round6AdaptedSha256": "9c6d613de4fef3afd89e448856009a18e369c40e548443f46d6500e0f24f6284",
+      "round7AdaptedSha256": "0e56a305d0bd03c7280690a4b56b1478c165b8708926a1fcb5c3c6a378a8fa2d",
+      "round10BeforeSha256": "77d4d416caaf2dc60f0831f348e0a75e7d9c6b1a85a26d3bcdda96dd2746c5a3",
+      "round10PreviousRecordedAdaptedSha256": "77d4d416caaf2dc60f0831f348e0a75e7d9c6b1a85a26d3bcdda96dd2746c5a3"
+    },
+    {
+      "file": "rls/team-lifecycle-audit.test.mjs",
+      "originalSha256": null,
+      "adaptation": "New local independent-agent audit for the 2026-10-13 team lifecycle round, not part of the original returned external review. Ten real PostgreSQL fixture scenarios cover terminal roster isolation, fresh idempotent replay across invitation cycles, captain and SQL authority, expired/restricted exit, archive preconditions, immutable application/agreement snapshots, races, private eligibility hints, forced apply/leave lock order, and append-only events. 2026-10-13 round5: create fixtures explicitly supply complete synthetic team context before inviting; all ten lifecycle scenarios and original assertions are preserved.",
+      "adaptedSha256": "d98766cf5dc9a11bc7d624fa454e60dfa5fcffd154384f0f0c6e12e7a5de7236",
+      "round4AdaptedSha256": "2a02e7d8bba861fab8ed3706766a5783b83f8afb3af8e17ad1879f99c64f4f9d"
+    },
+    {
+      "file": "rls/team-context-audit.test.mjs",
+      "originalSha256": null,
+      "adaptation": "New local independent-agent round5 review, not part of the original external review. Eleven disposable PostgreSQL scenarios: four terminal context boundaries, validation, legacy blank pending acceptance and invite guards, edit authority, fresh idempotent replays, both forced edit/accept queue orders, unchanged signed snapshots, exact new function ACLs and inaccessible immutable history. The legacy pending row is constructed by fixture owner with the specific trigger temporarily disabled in the disposable database; it is not itself a real upgrade-migration test.",
+      "adaptedSha256": "b93019ab10ecb586c78b2f952ef12aa32f146115ac78869f25e783c4e247c02d"
+    },
+    {
+      "file": "team-context-fixture.mjs",
+      "originalSha256": null,
+      "adaptation": "New shared synthetic complete-context helper used to adapt existing independent create fixtures without relaxing their assertions; helper is not a test case.",
+      "adaptedSha256": "c34fa2506209d3f6e3514d5f2bba9bfbad67291c70091cc30e0b91394fc5f056"
+    },
+    {
+      "file": "fulfillment/fulfillment-independent.test.mjs",
+      "originalSha256": null,
+      "adaptation": "New local independent-agent round6 review, not part of the original returned external review. Fourteen real disposable PostgreSQL scenarios cover exact submission/version/revision anchors, immutable feedback, resubmission, multi-milestone completion, concurrent submission/acceptance, fresh idempotency recovery, naturally expired affiliation and locked-account queue changes, original vs later team members, SQL write/ACL isolation, input validation, unforgeable application invitation/consent, and explicitly queued overlapping-captain acceptance.",
+      "adaptedSha256": "9b7ad5dee921281a54a1b002cd342798847b6dedea39762e29ddd02de8c52b0c"
+    },
+    {
+      "file": "fulfillment/legacy-upgrade.test.mjs",
+      "originalSha256": null,
+      "adaptation": "New local independent-agent round6 real forward-migration test. Creates a disposable database, applies the exact nine historical migrations with recorded checksums, inserts synthetic legacy accepted/submitted/pending states, then applies 010. Asserts unchanged old agreement states/terms and submissions, no invented review records, exact existing submission links, publisher-only explicit completion for all-accepted active legacy work, idempotent completion, and no-op second migration. No trigger disabling or shared-preview mutation. 2026-10-13 round7 independent-reviewer adaptation, explicitly authorized by root: this continuing upgrade regression now runs real 009-to-011, asserts exactly 010_milestone_revision_workflow.sql and 011_notifications_and_overview.sql, pins frozen round6 010 SHA256, verifies 011 recorded checksum, asserts no notification backfill, and expects exactly one notification for the explicit post-upgrade completion. All original signed-data, state, immutable submission, no-fabricated-review, publisher-only completion, idempotence, and no-op assertions remain. Round6 historical exact 009-to-010 result remains unchanged in round6Execution. 2026-10-13 round8 independent-reviewer adaptation: Exact forward migration count/list expands 009-to-012; frozen011 and final012 hashes added; all original assertions retained. Original file and precise diff retained in docs/evidence/interaction-round8/independent/; existing assertions preserved. Round8 final independent adapter: exact009-to-013 count4/list010–013 and new frozen013 checksum only; all previous assertions preserved. Beforebytes/diff/1of1 ordinary disposable upgrade log in independent/013-compat. Round10 Task2 separate-author adapter, pending independent review: retain exact historical009-to013 target through pinned010/011 and reviewed012/013 preservation helpers; all original state/terms/submission/no-backfill/replay assertions retained.",
+      "adaptedSha256": "898c54af6ba7fbaad5492316ea1888dd64ff49e927e2a48e2f2f83dda891013b",
+      "round6AdaptedSha256": "a59928d3bb2a4f6c03f34310e26173b90e5e6bcf0c01ab5414f34bd285d07b8d",
+      "round7AdaptedSha256": "2635be4421c343a1751106550ad3811bcdaf378575e226bc35c706685368736f",
+      "round8Before013AdaptedSha256": "8d0a3c9e1f67dbe9f16b6229eb43a6ed99fac5f8e4213b5aadf868f505e839f0",
+      "round10BeforeSha256": "c709c18cf4acaf03b10c82adae8c2f8dabf8caf976aa50c9ef5dba0e867de8ae",
+      "round10PreviousRecordedAdaptedSha256": "c709c18cf4acaf03b10c82adae8c2f8dabf8caf976aa50c9ef5dba0e867de8ae"
+    },
+    {
+      "file": "notifications/notifications-adversarial.test.mjs",
+      "originalSha256": null,
+      "adaptedSha256": "06e4575a615782b8591920805d968ec4e97c85d0c99cc018b53af37969373683",
+      "adaptation": "New local independent-reviewer round7 test file, not implementer or historical external authorship. Nine checks (eight PostgreSQL, one input-only): replay redaction across revoke/reinvite; actual queued SQL read/account-lock race; two idempotency keys plus concurrent arrival; cursor paging with read/insert and foreign cursor RLS; full notification helper ACL checks and rolled-back read/message; expired catalog label versus permitted signed history/counts; malformed inputs; frozen signing roster after departure/new join and concurrent message replay; authorized context labels, 160 Unicode characters, SQL outsider/locked denial, unchanged typed targets and no label/body persistence. The original pre-context no-private-text DTO assertion now excludes only the explicitly authorized contextLabel field, while retaining full raw-storage prohibition and all other field checks. 2026-10-13 round8 independent-reviewer adaptation: Only app EXECUTE positive allowlist adds notification_work_detail; old assertions retained. Original file and precise diff retained in docs/evidence/interaction-round8/independent/; existing assertions preserved. 2026-10-13 round9 independent contract adaptation: the two old DTO-wide private-body bans exclude only authorized read-time contextLabel and messageContext. Old-field and raw-storage bans remain. Adds exact matching message ID, six-digit timestamp, captain author, preview and truncated=false assertions for listing and explicit acknowledgement; adds required null messageContext for non-message and ordinarily revoked team targets. No implementation-test import or additional test cases. Original bytes, two-case incompatibility failures and exact nine-case final run are retained in docs/evidence/interaction-round9/independent-adapter/.",
+      "round7AdaptedSha256": "8a30c896f7a5c7720b80994f751e3bd82e332aab498fad0a2d544d0eaa4caa4e",
+      "round8AdaptedSha256": "2a102b782bb3c99793985319bb72efde5f6124addf766023fbcd838937e1d205"
+    },
+    {
+      "file": "conversations/conversations-adversarial.test.mjs",
+      "originalSha256": null,
+      "adaptedSha256": "538dce18140af5493908c299bb3f42aada287a653353b6e25544f58ea8fbb6f6",
+      "adaptation": "New independently authored requirement-driven Round8 checks:14 total,13 PostgreSQL and1 pure query validation. Frozen roster/currentnames, complete exact history/roster paging, replay/current authority, direct SQL restricted/expired bothscopes, helper ACL, precise immutable notification version/context/redaction. Detected preexisting SQL insertion bypass, retained failed evidence, independently verified insert-trigger repair. Large synthetic roster/legacyunknownauthor construction uses explicitly privileged fixture data; it is not individual UI signing proof."
+    },
+    {
+      "file": "conversations/rls-baseline-probe.mjs",
+      "originalSha256": null,
+      "adaptedSha256": "12afc2c7fa5cd2655a4f37520b724859d28e5833fcda35d32700dc2338e970a4",
+      "adaptation": "Independent historical diagnostic, not part of acceptance test totals. Actual001–011 then preserved original012 reproduce eight restricted/expired×agreement/order insertion bypasses. Exit0 confirms reproduction, never a passing authorization gate. No originalpreview touched."
+    },
+    {
+      "file": "conversations/message-revocation-race-diagnostic.mjs",
+      "originalSha256": "72e7ca2bdeb7a6ecd248cd7046b207df3b73398c8c75e2653d0620df990ccdb4",
+      "adaptedSha256": "72e7ca2bdeb7a6ecd248cd7046b207df3b73398c8c75e2653d0620df990ccdb4",
+      "adaptation": "Independent diagnostic preserved after automatic cybersecurity review stopped agent continuation. Initial pre-stop execution reproduced raw1message+2notifications; servicecontrol denied0rows but error-code assertion mismatched P0001 vs not_found. Exactsource renamed out of automatic .test discovery without content edits; excluded from passing test counts and must not be rerun. No postfix forced-race execution claimed. initial.log and boundary.json retained."
+    },
+    {
+      "file": "applications/application-conversations-independent.test.mjs",
+      "originalSha256": "290c57a5bdbc733cf7cf0c45631dba3d273a1d4de1ffd00ff901f7ece309c62c",
+      "adaptedSha256": "290c57a5bdbc733cf7cf0c45631dba3d273a1d4de1ffd00ff901f7ece309c62c",
+      "adaptation": "New Round10 Task2 requirement-driven ordinary lifecycle/access suite by separate agent from frozen Task1 product implementation. No product-test imports, forced waits or revocation diagnostics. Initial student-eligibility fixture failure and corrected source/logs retained in task-2-evidence. Independent review pending.",
+      "provenance": ".superpowers/sdd/interaction-round10-plan/task-2-report.md"
+    }
+  ],
+  "round5Execution": {
+    "suite": "node --test tests/independent/*/*.test.mjs",
+    "total": 55,
+    "passed": 55,
+    "failed": 0,
+    "postgresScenarios": 51,
+    "pureInputChecks": 4,
+    "newContextScenarios": 11,
+    "evidence": "docs/evidence/interaction-round5/independent-backend.log",
+    "migration009Sha256": "88dc7aaf4e28b02636b1a0bb65f55a14eddfe42211beb4e7d5f77316483870f0",
+    "scope": "Only freshly created disposable campus_test_* databases; no shared-preview mutation. Historical round4 44/44 evidence remains separate."
+  },
+  "round6Execution": {
+    "suite": "node --test tests/independent/*/*.test.mjs",
+    "total": 70,
+    "passed": 70,
+    "failed": 0,
+    "postgresScenarios": 66,
+    "pureInputChecks": 4,
+    "newFulfillmentScenarios": 15,
+    "newRealUpgradeScenarios": 1,
+    "evidence": "docs/evidence/interaction-round6/independent-backend.log",
+    "firstFocusedEvidence": "docs/evidence/interaction-round6/independent-fulfillment-initial.log",
+    "firstFocusedTotal": 15,
+    "firstFocusedPassed": 15,
+    "firstFocusedFailed": 0,
+    "migration010Sha256": "14266b68faaae8db3104872ceaffd78f8cfb92b45b6e3a1a3b550af250ad27f1",
+    "freezeManifest": "docs/evidence/interaction-round6/independent-freeze.sha256",
+    "durationMs": 8832.602917,
+    "scope": "Only freshly created disposable campus_test_* databases. Fourteen new service/raw-SQL scenarios plus one actual 009-to-010 upgrade. No HTTP/browser acceptance, shared-preview mutation, real payment, deployment, or external messages. Static review risks were repaired before the first independent execution; no failed pre-fix reproduction is claimed. Historical round5Execution and earlier hashes remain unchanged."
+  },
+  "round7FocusedExecution": {
+    "suite": "node --test tests/independent/notifications/*.test.mjs tests/independent/rls/rls-context.test.mjs tests/independent/fulfillment/legacy-upgrade.test.mjs",
+    "total": 17,
+    "passed": 17,
+    "failed": 0,
+    "postgresScenarios": 16,
+    "pureInputChecks": 1,
+    "newNotificationChecks": 9,
+    "evidence": "docs/evidence/interaction-round7/independent-notifications.log",
+    "beforeContextEvidence": "docs/evidence/interaction-round7/independent-notifications-before-context.log",
+    "beforeContextTotal": 16,
+    "beforeContextPassed": 16,
+    "migration011Sha256": "3a08d04d84ba90fb636b574591e3720c92fa60aba13bee99ac976a0a79075011",
+    "scope": "Fresh loopback campus_test_[a-f0-9]{32} fixture databases only. No production source edits, shared-role alterations, preview migration/restart, HTTP/browser run or external provider calls. This is focused execution, not a claimed full independent-suite rerun. Root initial broad-run compatibility failures remain separately in tests-backend-stage.log; this reviewer run had no failures.",
+    "supplementalUpgradeReplay": {
+      "suite": "node --test --test-name-pattern='010 to 011' tests/backend/notifications.test.mjs",
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "evidence": "docs/evidence/interaction-round7/independent-upgrade-replay.log",
+      "authorship": "Implementer-authored migration test inspected and independently executed by reviewer; not counted among the nine independently authored new checks."
+    }
+  },
+  "round8Execution": {
+    "suite": "npm run test:backend (includes tests/independent/*/*.test.mjs)",
+    "fullBackendTotal": 225,
+    "fullBackendPassed": 225,
+    "fullBackendFailed": 0,
+    "independentSubsetTotal": 93,
+    "independentSubsetPassed": 93,
+    "independentSubsetFailed": 0,
+    "subsetNotAdditive": true,
+    "newConversationChecks": 14,
+    "focusedIndependentTotal": 31,
+    "focusedIndependentLogs": [
+      "docs/evidence/interaction-round8/independent/repair-run.log",
+      "docs/evidence/interaction-round8/independent/repair-notifications.log",
+      "docs/evidence/interaction-round8/independent/rls-inventory-repair.log"
+    ],
+    "evidence": "docs/evidence/interaction-round8/backend-full-final.log",
+    "firstFullRun": {
+      "total": 225,
+      "passed": 224,
+      "failed": 1,
+      "evidence": "docs/evidence/interaction-round8/backend-full-first.log",
+      "failure": "Exact old SECURITY DEFINER inventory omitted two new reviewed functions; independent precise adapter preserved all old assertions."
+    },
+    "migration012Sha256": "05ce34dd5067ae44bf6e1f15cc995f8184ddbe6e352228c554fb919bdf837d26",
+    "scope": "Fresh loopback disposable PostgreSQL tests plus pure inputs; no HTTP/browser, production mail/payment or deployment proof. Earlier failed source/fixture runs and eightcase historical diagnostic retained separately in independent report."
+  },
+  "round8FinalRepairExecution": {
+    "migration013Sha256": "ed5d08606e7dd93d588cba87993dbd5f7f9c556649da7f9e60b39d1414405190",
+    "legacyAdapterPassed": 1,
+    "evidence": "docs/evidence/interaction-round8/independent/013-compat/legacy-upgrade-test.log",
+    "excludedOperation": "Forced raw INSERT/revocation operation; automatic review stopped continuation. Existingpre-stop evidence preserved, no retry or postfixexecution.",
+    "fullAllowedSuite": "docs/evidence/interaction-round8/backend-after-013-final.log",
+    "fullBackendTotal": 227,
+    "fullBackendPassed": 227,
+    "fullBackendFailed": 0,
+    "independentSubsetTotal": 93,
+    "independentSubsetPassed": 93,
+    "subsetNotAdditive": true,
+    "localTestsTotal": 27,
+    "localTestsPassed": 27,
+    "localEvidence": "docs/evidence/interaction-round8/local-tests-final.log",
+    "combinedLocalTotal": 254
+  },
+  "round9NotificationAdapterExecution": {
+    "kind": "Independent notification contract adaptation, not product implementation or a full independent-suite rerun",
+    "file": "tests/independent/notifications/notifications-adversarial.test.mjs",
+    "beforeSha256": "2a102b782bb3c99793985319bb72efde5f6124addf766023fbcd838937e1d205",
+    "adaptedSha256": "06e4575a615782b8591920805d968ec4e97c85d0c99cc018b53af37969373683",
+    "initial": {
+      "command": "node --test --test-name-pattern='foreign cursors|context labels are readable' tests/independent/notifications/notifications-adversarial.test.mjs",
+      "exitCode": 1,
+      "total": 2,
+      "passed": 0,
+      "failed": 2,
+      "durationMs": 734.771709,
+      "evidence": "docs/evidence/interaction-round9/independent-adapter/initial.log",
+      "meaning": "Old blanket DTO bans reject newly authorized messageContext; failures retained, not hidden."
+    },
+    "final": {
+      "command": "node --test tests/independent/notifications/notifications-adversarial.test.mjs",
+      "exitCode": 0,
+      "total": 9,
+      "passed": 9,
+      "failed": 0,
+      "postgresScenarios": 8,
+      "pureInputChecks": 1,
+      "durationMs": 1290.617167,
+      "evidence": "docs/evidence/interaction-round9/independent-adapter/final.log"
+    },
+    "subsetNotAdditive": true,
+    "scope": "Two commands only against fresh loopback campus_test_[a-f0-9]{32} fixtures. Ordinary existing account-lock/arrival cases retained; blocked forced-revocation diagnostic not executed or recreated. No new tests, product-source edits, migrations, preview operations, external providers, trial files or full suite.",
+    "limits": "Short agreement message preview and existing non-message/revoked-team null contexts only; no independent claim here for long Unicode truncation, unavailable message mappings, order-message preview, absent authors, browser behavior, production performance or forced-revocation concurrency.",
+    "report": ".superpowers/sdd/interaction-round9-plan/independent-notification-adapter-report.md"
+  }
+}

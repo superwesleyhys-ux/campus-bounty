@@ -1,0 +1,39 @@
+{
+  "name": "campus-bounty",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "CAMPUS_DEMO=1 next dev --hostname 127.0.0.1 --port 3010",
+    "build": "next build",
+    "start": "CAMPUS_DEMO=1 next start --hostname 127.0.0.1 --port 3010",
+    "test": "node --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "backend:db": "node scripts/backend-local.mjs",
+    "backend:migrate": "node scripts/backend-prepare.mjs --local",
+    "backend:fixture": "node scripts/backend-fixture.mjs --local",
+    "backend:dev": "node scripts/backend-dev.mjs",
+    "backend:worker": "node scripts/backend-worker.mjs",
+    "backend:mail-check": "node scripts/backend-mail-check.mjs",
+    "test:backend": "node --test tests/backend/*.test.mjs tests/independent/*/*.test.mjs",
+    "interaction:preview": "node scripts/interaction-preview.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "0.468.0",
+    "next": "16.4.0",
+    "nodemailer": "10.0.16",
+    "pg": "8.23.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "axe-core": "4.14.0",
+    "prettier": "3.9.9",
+    "smtp-server": "3.19.18",
+    "typescript": "5.9.3"
+  }
+}

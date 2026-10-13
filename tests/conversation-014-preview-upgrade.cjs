@@ -1,0 +1,83 @@
+// For root review/execution: single014 upgrade of the EXISTING disposable preview.
+// Never restart the preview. Every preservation check happens before COMMIT.
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const { randomUUID } = require("node:crypto");
+const { withFixture } = require("./team-browser-support.cjs");
+const {
+  upgradeReviewed014,
+  verifyReviewedReplay,
+} = require("./conversation-014-upgrade-harness.cjs");
+
+(async () => {
+  const expectedHash = process.env.EXPECTED_APPLICATION_CONVERSATION_SHA;
+  const migration = process.env.APPLICATION_CONVERSATION_MIGRATION;
+  assert.match(expectedHash || "", /^[a-f0-9]{64}$/);
+  assert.equal(migration, "014_application_conversations.sql");
+  const folder = path.resolve(
+    "docs/evidence/interaction-round10/upgrade-014-harness",
+    `preview-${new Date().toISOString().replaceAll(":", "-")}-${randomUUID()}`,
+  );
+  fs.mkdirSync(folder, { recursive: true });
+  let committed = false;
+  try {
+    const result = await withFixture(async (client) => {
+      const outcome = await upgradeReviewed014(client, {
+        expectedHash,
+        migration,
+        evidenceDirectory: folder,
+      });
+      committed = outcome.transactionOutcome === "committed";
+      const replayApplied = await verifyReviewedReplay(client, {
+        expectedHash,
+        migration,
+      });
+      assert.equal(replayApplied, 0);
+      return {
+        transactionOutcome: outcome.transactionOutcome,
+        migration,
+        sha256: expectedHash,
+        applied: outcome.applied,
+        preservationVerifiedBeforeCommit:
+          outcome.preservationVerifiedBeforeCommit,
+        replayApplied,
+        exactContexts: outcome.exactContexts,
+        historicalApplicationIdsNull: outcome.historicalApplicationIdsNull,
+        oldTableCount: outcome.tables.length,
+        evidenceDirectory: folder,
+        scope:
+          "Existing loopback disposable fixture only; no production, payment or mail proof.",
+      };
+    });
+    fs.writeFileSync(
+      path.join(folder, "preview-upgrade.json"),
+      JSON.stringify(result, null, 2) + "\n",
+      { flag: "wx" },
+    );
+    console.log(JSON.stringify(result, null, 2));
+  } catch (error) {
+    const failure = {
+      transactionOutcome:
+        error.upgradeOutcome?.transactionOutcome ||
+        (committed ? "committed" : "not_started"),
+      stage: committed ? "post_commit_replay_or_receipt" : "upgrade",
+      error: {
+        name: error.name,
+        code: error.code || null,
+        message: error.message,
+      },
+      evidenceDirectory: folder,
+    };
+    fs.writeFileSync(
+      path.join(folder, "preview-upgrade-failure.json"),
+      JSON.stringify(failure, null, 2) + "\n",
+      { flag: "wx" },
+    );
+    console.error(JSON.stringify(failure, null, 2));
+    process.exitCode = 1;
+  }
+})().catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
+});

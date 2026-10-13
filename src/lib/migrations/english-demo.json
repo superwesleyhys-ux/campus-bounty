@@ -1,0 +1,298 @@
+{
+  "users": [
+    {
+      "id": "student",
+      "fields": {
+        "name": ["林同学", "Jamie Lin"],
+        "role": ["学生", "Student"]
+      }
+    },
+    {
+      "id": "professor",
+      "fields": {
+        "name": ["陈教授", "Professor Chen"],
+        "role": ["教授", "Professor"]
+      }
+    },
+    {
+      "id": "maker",
+      "fields": {
+        "name": ["周同学", "Taylor Zhou"],
+        "role": ["学生", "Student"]
+      }
+    },
+    {
+      "id": "researcher",
+      "fields": {
+        "name": ["Alex 研究员", "Alex Morgan"],
+        "role": ["研究人员", "Researcher"]
+      }
+    },
+    {
+      "id": "designer",
+      "fields": {
+        "name": ["许同学", "Riley Xu"],
+        "role": ["学生", "Student"]
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "bounty-1",
+      "fields": {
+        "title": [
+          "把城市出行数据，变成一张看得懂的图",
+          "Turn urban mobility data into a clear visual story"
+        ],
+        "category": ["科研协作", "Research"],
+        "description": [
+          "我们正在整理一份公开的城市出行数据，希望找到一位对数据有兴趣的同学，清洗 CSV 并制作可交互的探索图表。数据全部来自公开资料，不涉及个人敏感信息。",
+          "Help us clean a public urban mobility dataset and build interactive charts. All data comes from public sources and contains no sensitive personal information."
+        ],
+        "requirements": [
+          [
+            "交付可复跑的数据清洗脚本",
+            "提供 3 张可交互图表，支持日期筛选",
+            "附依赖清单、来源说明和运行文档"
+          ],
+          [
+            "Deliver a reproducible data-cleaning script",
+            "Create 3 interactive charts with date filters",
+            "Include dependencies, source attribution, and setup instructions"
+          ]
+        ],
+        "tags": [
+          ["Python", "数据可视化"],
+          ["Python", "Data visualization"]
+        ]
+      }
+    },
+    {
+      "id": "bounty-2",
+      "fields": {
+        "title": [
+          "为校园创业项目做一个清爽的落地页",
+          "Build a landing page for a campus startup"
+        ],
+        "category": ["开发编程", "Development"],
+        "description": [
+          "一个正在筹备的校园项目需要响应式介绍页。已有文案和线框，需要你把它变成可运行的网站。",
+          "An early-stage campus project needs a responsive landing page. We have copy and wireframes; you will turn them into a working site."
+        ],
+        "requirements": [
+          [
+            "完成桌面与手机两种布局",
+            "表单有完整校验与成功状态",
+            "交付源码及本地运行说明"
+          ],
+          [
+            "Build desktop and mobile layouts",
+            "Add form validation and a success state",
+            "Deliver source code and local setup instructions"
+          ]
+        ],
+        "tags": [
+          ["React", "前端开发"],
+          ["React", "Frontend development"]
+        ]
+      }
+    },
+    {
+      "id": "bounty-3",
+      "fields": {
+        "title": [
+          "复现一个公开论文的基线实验",
+          "Reproduce a baseline from a published paper"
+        ],
+        "category": ["科研协作", "Research"],
+        "description": [
+          "为公开论文配置复现实验环境，按公开仓库说明跑通指定的小规模基线。我们提供论文、代码链接及可用计算资源。",
+          "Set up a reproducible environment and run a small baseline from a public research repository. We provide the paper, code, and computing resources."
+        ],
+        "requirements": [
+          [
+            "锁定依赖版本并记录运行命令",
+            "提交实际日志与结果表",
+            "说明复现差异及未解决问题"
+          ],
+          [
+            "Pin dependencies and record the commands used",
+            "Submit actual execution logs and a results table",
+            "Document differences and unresolved issues"
+          ]
+        ],
+        "tags": [
+          ["PyTorch", "机器学习"],
+          ["PyTorch", "Machine learning"]
+        ]
+      }
+    },
+    {
+      "id": "bounty-4",
+      "fields": {
+        "title": [
+          "设计一套春季社团招新视觉",
+          "Design a spring recruitment kit for a campus club"
+        ],
+        "category": ["设计创意", "Design"],
+        "description": [
+          "为校园读书社制作招新物料。包括一张主海报、两张社交媒体图片和可编辑模板，文案由我们提供。",
+          "Create recruitment materials for a campus book club: a main poster, two social images, and an editable template. Copy is provided."
+        ],
+        "requirements": [
+          [
+            "交付主海报和两张社媒配图",
+            "提供可编辑源文件",
+            "允许一轮约定范围内修改"
+          ],
+          [
+            "Deliver a main poster and two social images",
+            "Include editable source files",
+            "Include one round of revisions within the agreed scope"
+          ]
+        ],
+        "tags": [
+          ["Figma", "视觉设计"],
+          ["Figma", "Visual design"]
+        ]
+      }
+    },
+    {
+      "id": "bounty-5",
+      "fields": {
+        "title": [
+          "给公开历史档案做一份英文主题索引",
+          "Create a topic index for public historical archives"
+        ],
+        "category": ["研究辅助", "Research support"],
+        "description": [
+          "将 30 份已经公开的历史文档按主题、年代及出处整理为检索表。不涉及课程评分或代写。",
+          "Index 30 public historical documents by topic, date, and source. This is research support, not graded coursework or ghostwriting."
+        ],
+        "requirements": [
+          [
+            "30 条记录均附原始出处",
+            "整理主题标签与年代",
+            "交付表格和简短的分类说明"
+          ],
+          [
+            "Link each of the 30 records to its original source",
+            "Add topic tags and dates",
+            "Deliver a spreadsheet and a short explanation of the categories"
+          ]
+        ],
+        "tags": [
+          ["英文写作", "文献整理"],
+          ["English writing", "Literature organization"]
+        ]
+      }
+    },
+    {
+      "id": "bounty-6",
+      "fields": {
+        "title": [
+          "帮校园公益网站修好移动端导航",
+          "Fix mobile navigation for a campus nonprofit"
+        ],
+        "category": ["开发编程", "Development"],
+        "description": [
+          "现有网站的手机菜单存在布局和键盘焦点问题。希望定位原因并提交小范围修复。",
+          "Our mobile menu has layout and keyboard focus issues. Identify the cause and deliver a focused fix."
+        ],
+        "requirements": [
+          [
+            "320px 宽度可正常使用",
+            "键盘可打开与关闭菜单",
+            "提交修复前后对照和代码"
+          ],
+          [
+            "Ensure the menu works at a width of 320px",
+            "Support opening and closing the menu by keyboard",
+            "Include before-and-after evidence and source code"
+          ]
+        ],
+        "tags": [
+          ["CSS", "无障碍"],
+          ["CSS", "Accessibility"]
+        ]
+      }
+    }
+  ],
+  "products": [
+    {
+      "id": "goods-1",
+      "fields": {
+        "title": ["轻便通勤单车", "Lightweight commuter bike"],
+        "category": ["校园闲置", "Pre-owned"],
+        "description": [
+          "适合校园通勤的 7 速城市单车，车况良好，含车锁。演示商品，无真实库存。",
+          "A 7-speed city bike in good condition, with a lock. Ideal for campus trips. Demo listing; no real inventory."
+        ],
+        "delivery": [
+          "Stanford 校内当面交付",
+          "In-person pickup on the Stanford campus"
+        ],
+        "tags": [
+          ["校内自取", "九成新"],
+          ["Campus pickup", "Like new"]
+        ]
+      }
+    },
+    {
+      "id": "goods-2",
+      "fields": {
+        "title": ["研究生 Notion 工作台", "Graduate research Notion workspace"],
+        "category": ["数字作品", "Digital goods"],
+        "description": [
+          "论文阅读、实验计划和周复盘模板，包含上手说明。演示数字商品。",
+          "Templates for paper reading, experiment planning, and weekly reviews, with a getting-started guide. Demo digital item."
+        ],
+        "delivery": [
+          "卖家提供模板链接与使用说明",
+          "The seller provides a template link and instructions"
+        ],
+        "tags": [
+          ["数字下载", "效率工具"],
+          ["Digital download", "Productivity"]
+        ]
+      }
+    },
+    {
+      "id": "goods-3",
+      "fields": {
+        "category": ["书籍教材", "Books"],
+        "description": [
+          "算法课程参考书，少量铅笔标注，适合自学。演示商品，无真实库存。",
+          "An algorithms textbook with a few pencil notes. Great for self-study. Demo listing; no real inventory."
+        ],
+        "delivery": [
+          "Berkeley 校内当面交付",
+          "In-person pickup on the Berkeley campus"
+        ],
+        "tags": [
+          ["教材", "八成新"],
+          ["Textbook", "Good condition"]
+        ]
+      }
+    },
+    {
+      "id": "goods-4",
+      "fields": {
+        "title": ["公开数据清洗工具包", "Public data cleaning toolkit"],
+        "category": ["数字作品", "Digital goods"],
+        "description": [
+          "Python 常用清洗函数、示例数据和运行文档。仅含公开合成样例。",
+          "Reusable Python cleaning functions, sample data, and setup instructions. Includes only public synthetic examples."
+        ],
+        "delivery": [
+          "卖家提供源码链接与许可说明",
+          "The seller provides a source code link and license details"
+        ],
+        "tags": [
+          ["Python", "源码"],
+          ["Python", "Source code"]
+        ]
+      }
+    }
+  ]
+}

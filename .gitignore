@@ -1,0 +1,14 @@
+node_modules/
+.next*/
+.release/
+.data/
+.superpowers/
+.env*
+!.env.example
+*.tsbuildinfo
+__pycache__/
+*.pyc
+test-results/
+playwright-report/
+*.state.json
+*.log
