@@ -2,12 +2,14 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useResource } from "./api";
+import { HistoryPagination } from "./history-pagination";
 import {
   categories,
   money,
   type Task,
   type Product,
   type PageResult,
+  type HistoryPage,
 } from "./types";
 import { Empty, ResourceState, Status } from "./ui";
 import { TargetDeliveryDate } from "./task-terms";
@@ -32,17 +34,16 @@ export function Catalog({
   });
   if (kind === "task" && query.get("category"))
     search.set("category", query.get("category")!);
-  const resource = useResource<PageResult<Task | Product> | Task[]>(
+  const savedSearch = new URLSearchParams({ scope: "saved" });
+  if (query.has("cursor")) savedSearch.set("cursor", query.get("cursor")!);
+  const resource = useResource<PageResult<Task | Product> | HistoryPage<Task>>(
     saved
-      ? "saved/tasks"
+      ? `workspace/history?${savedSearch}`
       : `${kind === "task" ? "tasks" : "products"}?${search}`,
   );
-  const items = Array.isArray(resource.data)
-    ? resource.data
-    : resource.data?.items;
-  const total = Array.isArray(resource.data)
-    ? resource.data.length
-    : resource.data?.total;
+  const items = resource.data?.items;
+  const total =
+    resource.data && "total" in resource.data ? resource.data.total : undefined;
   function page(value: number) {
     const p = new URLSearchParams(query.toString());
     p.set("offset", String(value));
@@ -143,17 +144,40 @@ export function Catalog({
         </form>
       )}
       <ResourceState {...resource} />
+      {saved && (
+        <HistoryPagination
+          count={items?.length}
+          nextCursor={
+            resource.data && "nextCursor" in resource.data
+              ? resource.data.nextCursor
+              : undefined
+          }
+          loading={resource.loading}
+        />
+      )}
       {items && (
         <>
-          <p className="cb-muted" role="status">
-            {total ?? items.length} {kind === "task" ? "bounties" : "items"}
-            {total ? ` · Showing ${offset + 1}–${offset + items.length}` : ""}
-          </p>
+          {!saved && (
+            <p className="cb-muted" role="status">
+              {total ?? items.length} {kind === "task" ? "bounties" : "items"}
+              {total ? ` · Showing ${offset + 1}–${offset + items.length}` : ""}
+            </p>
+          )}
           {!items.length ? (
-            <Empty title={saved ? "Start a shortlist" : "Nothing here yet"}>
-              {saved
-                ? "Save a bounty from its details to find it here later."
-                : "Try a different search or post the first listing."}
+            <Empty
+              title={
+                saved && query.has("cursor")
+                  ? "No records on this page"
+                  : saved
+                    ? "Start a shortlist"
+                    : "Nothing here yet"
+              }
+            >
+              {saved && query.has("cursor")
+                ? "There are no more accessible saved bounties at this position. Return to newest records or use your browser’s Back button."
+                : saved
+                  ? "Save a bounty from its details to find it here later."
+                  : "Try a different search or post the first listing."}
             </Empty>
           ) : (
             <div className={kind === "task" ? "cb-list" : "cb-products"}>
@@ -212,6 +236,17 @@ export function Catalog({
                 </article>
               ))}
             </div>
+          )}
+          {saved && (
+            <HistoryPagination
+              controlsOnly
+              nextCursor={
+                resource.data && "nextCursor" in resource.data
+                  ? resource.data.nextCursor
+                  : undefined
+              }
+              loading={resource.loading}
+            />
           )}
           {!saved && (
             <nav className="cb-pagination" aria-label="Result pages">

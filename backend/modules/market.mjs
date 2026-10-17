@@ -1,3 +1,4 @@
+import { workspaceHistoryModule } from "./workspace-history.mjs";
 import { conversationInboxModule } from "./conversation-inbox.mjs";
 import { notificationModule } from "./notifications.mjs";
 import { teamModule } from "./teams.mjs";
@@ -8,6 +9,7 @@ import { accountModule } from "./account.mjs";
 export function createMarket(store, options = {}) {
   return {
     ...teamModule(store),
+    ...workspaceHistoryModule(store),
     ...notificationModule(store),
     ...taskModule(store),
     ...goodsModule(store),

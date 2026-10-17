@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { historyDetailUrl } from "./history-pagination";
 import { useCallback, useRef, useState } from "react";
 import { Conversation } from "./conversation";
 import type { ApplicationConversationContext } from "./conversation-types";
@@ -23,6 +25,7 @@ export function ApplicationDetail({
   id: string;
   account: Account;
 }) {
+  const query = useSearchParams();
   const discussion = useRef<HTMLDivElement>(null);
   const restoreRefreshFocus = useRef(false);
   const [context, setContext] = useState<ApplicationConversationContext | null>(
@@ -96,7 +99,7 @@ export function ApplicationDetail({
               {campusVerified && application.task ? (
                 <Link
                   className="cb-button"
-                  href={`/?view=bounties&id=${application.task.id}#application-${application.id}`}
+                  href={`${historyDetailUrl(query, "bounties", application.task.id)}#application-${application.id}`}
                 >
                   Open bounty and available actions
                 </Link>

@@ -8,6 +8,7 @@ import { Messages } from "./messages";
 import { SampleSwitcher } from "./sample-switcher";
 import { SignIn } from "./auth";
 import { Catalog } from "./catalog";
+import { historyDetailUrl } from "./history-pagination";
 import { Publish } from "./publish";
 import { TaskDetail } from "./task-detail";
 import { ProductDetail } from "./product-detail";
@@ -105,6 +106,12 @@ export default function SharedCampus({
   };
   const back = new URLSearchParams(query.toString());
   back.delete("id");
+  back.delete("resource");
+  const returnView = query.get("returnView");
+  if (["workspace", "saved", "bounties", "market"].includes(returnView || ""))
+    back.set("view", returnView!);
+  back.delete("returnView");
+  const backView = back.get("view") || view;
   const account = me.loading || me.error ? undefined : me.data;
   return (
     <div className="cb-app">
@@ -223,11 +230,13 @@ export default function SharedCampus({
             {id && (
               <Link className="cb-back" href={`/?${back}`}>
                 ← Back to{" "}
-                {view === "market"
+                {backView === "market"
                   ? "marketplace"
-                  : view === "workspace"
+                  : backView === "workspace"
                     ? "workspace"
-                    : "bounties"}
+                    : backView === "saved"
+                      ? "saved bounties"
+                      : "bounties"}
               </Link>
             )}
             {(view === "bounties" || view === "saved") &&
@@ -238,12 +247,13 @@ export default function SharedCampus({
                   account={account}
                   openAgreement={(value) =>
                     router.push(
-                      `/?view=workspace&id=${value}&resource=agreement&tab=agreements`,
+                      historyDetailUrl(query, "workspace", value, "agreement"),
                     )
                   }
                 />
               ) : (
                 <Catalog
+                  key={`${account.id}:${view}`}
                   kind="task"
                   saved={view === "saved"}
                   openUrl={(value) => detailUrl(view, value)}
@@ -257,12 +267,13 @@ export default function SharedCampus({
                   account={account}
                   openOrder={(value) =>
                     router.push(
-                      `/?view=workspace&id=${value}&resource=order&tab=orders`,
+                      historyDetailUrl(query, "workspace", value, "order"),
                     )
                   }
                 />
               ) : (
                 <Catalog
+                  key={`${account.id}:${view}`}
                   kind="product"
                   openUrl={(value) => detailUrl(view, value)}
                 />

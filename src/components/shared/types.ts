@@ -160,3 +160,12 @@ export const money = (cents: number) =>
     cents / 100,
   );
 export const label = (state: string) => state.replaceAll("_", " ");
+
+export type HistoryScope =
+  "applications" | "agreements" | "orders" | "posted" | "selling" | "saved";
+export type HistoryPage<T> = {
+  scope: HistoryScope;
+  items: T[];
+  limit: number;
+  nextCursor: string | null;
+};

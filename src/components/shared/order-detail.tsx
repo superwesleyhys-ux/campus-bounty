@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { historyDetailUrl } from "./history-pagination";
 import { useEffect, useRef } from "react";
 import { ApiError, useMutation, useResource } from "./api";
 import { ConfirmAction } from "./confirm-action";
@@ -8,6 +10,7 @@ import { money, type Account, type Order } from "./types";
 import { Feedback, Field, PendingButton, ResourceState, Status } from "./ui";
 
 export function OrderDetail({ id, account }: { id: string; account: Account }) {
+  const query = useSearchParams();
   const heading = useRef<HTMLHeadingElement>(null);
   const resource = useResource<Order>(`orders/${id}`),
     mutation = useMutation(account.id),
@@ -120,7 +123,7 @@ export function OrderDetail({ id, account }: { id: string; account: Account }) {
             {["cancelled", "expired"].includes(order.state) && (
               <Link
                 className="cb-text-button"
-                href={`/?view=market&id=${order.product_id}`}
+                href={historyDetailUrl(query, "market", order.product_id)}
               >
                 View listing and availability →
               </Link>

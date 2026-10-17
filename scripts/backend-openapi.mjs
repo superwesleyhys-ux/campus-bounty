@@ -319,6 +319,36 @@ async function walk(dir, prefix = "") {
               schema: { type: "string", maxLength: 512 },
             },
           );
+        if (verb === "GET" && path === "/workspace/history")
+          parameters.push(
+            {
+              name: "scope",
+              in: "query",
+              required: true,
+              schema: {
+                enum: [
+                  "applications",
+                  "agreements",
+                  "orders",
+                  "posted",
+                  "selling",
+                  "saved",
+                ],
+              },
+            },
+            {
+              name: "limit",
+              in: "query",
+              schema: { type: "integer", minimum: 1, maximum: 50, default: 20 },
+            },
+            {
+              name: "cursor",
+              in: "query",
+              description:
+                "Opaque actor- and scope-bound continuation. Preserve full timestamp precision and use unchanged; refresh newest to see new records.",
+              schema: { type: "string", minLength: 1, maxLength: 512 },
+            },
+          );
         if (verb === "GET" && path === "/conversations/inbox")
           parameters.push(
             {
@@ -388,6 +418,18 @@ async function walk(dir, prefix = "") {
                   "Strictly guarded disposable loopback fixture entry only, never production or general development login. GET reports enabled. POST chooses only fixed student=Alex, applicant=Sam or publisher=Professor identities, revokes current cookie session and sets a new HttpOnly session cookie; no token in JSON. Unavailable POST returns404. Exact environment, fixture metadata and active verified identities rechecked.",
               }
             : {}),
+          ...(path === "/saved/tasks/{id}" && verb === "GET"
+            ? {
+                description:
+                  "Exact current actor's saved state for one accessible bounty. Non-locked account and current campus membership checked in the same app-role transaction as the RLS-authorized bounded lookup. Returns id and saved boolean, independent of list pagination. Unknown bounty404, invalid UUID or any query key422. GET has no side effects and no-store. Re-read after save or removal; do not infer state from list origin.",
+              }
+            : {}),
+          ...(path === "/workspace/history"
+            ? {
+                description:
+                  "Bounded RLS-authorized history. Strict scope/limit/cursor query only; unknown or duplicate fields and malformed limits/cursors return422. Default20/max50. Immutable creation timestamp (full database microseconds) and UUID descending, no total; nextCursor null at end. Applications include applicant/frozen-member history, matching legacy myApplications; publisher receives their applications through bounty detail. All authorized terminal states retained. Non-locked expired/restricted accounts retain private application/agreement/order history. Application catalog title is null without campus membership; authorized participant labels and immutable agreement/order terms preserve existing visibility. Own bounties, own products and Saved require campus membership. Saved orders by bounty creation time, not save time. Each request checks current account and RLS within the same app-role transaction. GET has no side effects. Legacy array routes remain for compatibility; UI history uses this endpoint.",
+              }
+            : {}),
           ...(path === "/conversations/inbox"
             ? {
                 description:
@@ -450,132 +492,151 @@ async function walk(dir, prefix = "") {
               content: {
                 "application/json": {
                   schema:
-                    path === "/auth/preview"
-                      ? verb === "GET"
-                        ? object({ enabled: { type: "boolean" } })
-                        : object({
-                            sample: { const: true },
-                            user: object({
-                              id: uuid,
-                              display_name: str,
-                              account_status: { const: "active" },
-                            }),
-                          })
-                      : path === "/conversations/inbox" && verb === "GET"
-                        ? object({
-                            items: {
-                              type: "array",
-                              items: object({
-                                id: uuid,
-                                type: {
-                                  enum: ["application", "agreement", "order"],
+                    path === "/saved/tasks/{id}" && verb === "GET"
+                      ? object({ id: uuid, saved: { type: "boolean" } })
+                      : path === "/workspace/history" && verb === "GET"
+                        ? { $ref: "#/components/schemas/WorkspaceHistoryPage" }
+                        : path === "/auth/preview"
+                          ? verb === "GET"
+                            ? object({ enabled: { type: "boolean" } })
+                            : object({
+                                sample: { const: true },
+                                user: object({
+                                  id: uuid,
+                                  display_name: str,
+                                  account_status: { const: "active" },
+                                }),
+                              })
+                          : path === "/conversations/inbox" && verb === "GET"
+                            ? object({
+                                items: {
+                                  type: "array",
+                                  items: object({
+                                    id: uuid,
+                                    type: {
+                                      enum: [
+                                        "application",
+                                        "agreement",
+                                        "order",
+                                      ],
+                                    },
+                                    state: str,
+                                    title: { anyOf: [str, { type: "null" }] },
+                                    role: str,
+                                    createdAt: {
+                                      type: "string",
+                                      format: "date-time",
+                                    },
+                                  }),
                                 },
-                                state: str,
-                                title: { anyOf: [str, { type: "null" }] },
-                                role: str,
-                                createdAt: {
-                                  type: "string",
-                                  format: "date-time",
+                                limit: {
+                                  type: "integer",
+                                  minimum: 1,
+                                  maximum: 50,
                                 },
-                              }),
-                            },
-                            limit: { type: "integer", minimum: 1, maximum: 50 },
-                            nextCursor: { anyOf: [str, { type: "null" }] },
-                          })
-                        : path === "/conversations/search" && verb === "GET"
-                          ? {
-                              $ref: "#/components/schemas/ConversationSearchPage",
-                            }
-                          : path === "/conversations/message" && verb === "GET"
-                            ? {
-                                $ref: "#/components/schemas/ConversationMessageWindow",
-                              }
-                            : path === "/conversations" && verb === "GET"
+                                nextCursor: { anyOf: [str, { type: "null" }] },
+                              })
+                            : path === "/conversations/search" && verb === "GET"
                               ? {
-                                  $ref: "#/components/schemas/ConversationPage",
+                                  $ref: "#/components/schemas/ConversationSearchPage",
                                 }
-                              : path === "/conversations/participants" &&
+                              : path === "/conversations/message" &&
                                   verb === "GET"
                                 ? {
-                                    $ref: "#/components/schemas/ConversationParticipantsPage",
+                                    $ref: "#/components/schemas/ConversationMessageWindow",
                                   }
-                                : path === "/applications/{id}" &&
-                                    verb === "GET"
+                                : path === "/conversations" && verb === "GET"
                                   ? {
-                                      $ref: "#/components/schemas/ApplicationHistory",
+                                      $ref: "#/components/schemas/ConversationPage",
                                     }
-                                  : path === "/notifications" && verb === "GET"
+                                  : path === "/conversations/participants" &&
+                                      verb === "GET"
                                     ? {
-                                        $ref: "#/components/schemas/NotificationPage",
+                                        $ref: "#/components/schemas/ConversationParticipantsPage",
                                       }
-                                    : path === "/notifications/{id}/read" &&
-                                        verb === "POST"
+                                    : path === "/applications/{id}" &&
+                                        verb === "GET"
                                       ? {
-                                          $ref: "#/components/schemas/Notification",
+                                          $ref: "#/components/schemas/ApplicationHistory",
                                         }
-                                      : path === "/agreements" && verb === "GET"
+                                      : path === "/notifications" &&
+                                          verb === "GET"
                                         ? {
-                                            type: "array",
-                                            items: {
-                                              $ref: "#/components/schemas/AgreementOverview",
-                                            },
+                                            $ref: "#/components/schemas/NotificationPage",
                                           }
-                                        : path === "/tasks/{id}" &&
-                                            verb === "GET"
+                                        : path === "/notifications/{id}/read" &&
+                                            verb === "POST"
                                           ? {
-                                              type: "object",
-                                              properties: {
-                                                related_agreement: {
-                                                  anyOf: [
-                                                    object({
-                                                      id: uuid,
-                                                      state: str,
-                                                    }),
-                                                    { type: "null" },
-                                                  ],
-                                                  description:
-                                                    "Current user's RLS-visible agreement only; null for outsiders. Task status is recruitment state, not fulfillment state.",
-                                                },
-                                              },
-                                              required: ["related_agreement"],
+                                              $ref: "#/components/schemas/Notification",
                                             }
-                                          : verb === "POST" &&
-                                              (path.startsWith(
-                                                "/milestones/",
-                                              ) ||
-                                                path ===
-                                                  "/agreements/{id}/completion")
+                                          : path === "/agreements" &&
+                                              verb === "GET"
                                             ? {
-                                                $ref: "#/components/schemas/FulfillmentResult",
+                                                type: "array",
+                                                items: {
+                                                  $ref: "#/components/schemas/AgreementOverview",
+                                                },
                                               }
-                                            : path ===
-                                                  "/milestones/{id}/reviews" &&
+                                            : path === "/tasks/{id}" &&
                                                 verb === "GET"
                                               ? {
-                                                  type: "array",
-                                                  items: {
-                                                    $ref: "#/components/schemas/MilestoneReview",
+                                                  type: "object",
+                                                  properties: {
+                                                    related_agreement: {
+                                                      anyOf: [
+                                                        object({
+                                                          id: uuid,
+                                                          state: str,
+                                                        }),
+                                                        { type: "null" },
+                                                      ],
+                                                      description:
+                                                        "Current user's RLS-visible agreement only; null for outsiders. Task status is recruitment state, not fulfillment state.",
+                                                    },
                                                   },
+                                                  required: [
+                                                    "related_agreement",
+                                                  ],
                                                 }
-                                              : path ===
-                                                  "/teams/{id}/candidates"
-                                                ? object({
-                                                    user_id: uuid,
-                                                    display_name: str,
-                                                  })
-                                                : path === "/teams" &&
+                                              : verb === "POST" &&
+                                                  (path.startsWith(
+                                                    "/milestones/",
+                                                  ) ||
+                                                    path ===
+                                                      "/agreements/{id}/completion")
+                                                ? {
+                                                    $ref: "#/components/schemas/FulfillmentResult",
+                                                  }
+                                                : path ===
+                                                      "/milestones/{id}/reviews" &&
                                                     verb === "GET"
                                                   ? {
                                                       type: "array",
                                                       items: {
-                                                        $ref: "#/components/schemas/TeamSummary",
+                                                        $ref: "#/components/schemas/MilestoneReview",
                                                       },
                                                     }
-                                                  : path.startsWith("/teams")
-                                                    ? {
-                                                        $ref: "#/components/schemas/Team",
-                                                      }
-                                                    : {},
+                                                  : path ===
+                                                      "/teams/{id}/candidates"
+                                                    ? object({
+                                                        user_id: uuid,
+                                                        display_name: str,
+                                                      })
+                                                    : path === "/teams" &&
+                                                        verb === "GET"
+                                                      ? {
+                                                          type: "array",
+                                                          items: {
+                                                            $ref: "#/components/schemas/TeamSummary",
+                                                          },
+                                                        }
+                                                      : path.startsWith(
+                                                            "/teams",
+                                                          )
+                                                        ? {
+                                                            $ref: "#/components/schemas/Team",
+                                                          }
+                                                        : {},
                 },
               },
             },
@@ -623,6 +684,149 @@ const spec = {
       },
     },
     schemas: {
+      WorkspaceHistoryPage: {
+        oneOf: [
+          ["applications", "WorkspaceApplication"],
+          ["agreements", "WorkspaceAgreement"],
+          ["orders", "WorkspaceOrder"],
+          ["posted", "WorkspaceTask"],
+          ["selling", "WorkspaceProduct"],
+          ["saved", "WorkspaceTask"],
+        ].map(([scope, item]) =>
+          object({
+            scope: { const: scope },
+            items: {
+              type: "array",
+              maxItems: 50,
+              items: { $ref: `#/components/schemas/${item}` },
+            },
+            limit: { type: "integer", minimum: 1, maximum: 50 },
+            nextCursor: { anyOf: [str, { type: "null" }] },
+          }),
+        ),
+      },
+      WorkspaceApplication: {
+        type: "object",
+        required: [
+          "id",
+          "task_id",
+          "applicant_id",
+          "team_id",
+          "proposal",
+          "state",
+          "created_at",
+          "task_title",
+          "members",
+        ],
+        properties: {
+          id: uuid,
+          task_id: uuid,
+          applicant_id: uuid,
+          team_id: { anyOf: [uuid, { type: "null" }] },
+          proposal: str,
+          state: str,
+          created_at: { type: "string", format: "date-time" },
+          task_title: { anyOf: [str, { type: "null" }] },
+          members: {
+            type: "array",
+            items: object({
+              user_id: uuid,
+              display_name: { anyOf: [str, { type: "null" }] },
+              confirmed: { type: "boolean" },
+            }),
+          },
+        },
+      },
+      WorkspaceAgreement: {
+        allOf: [
+          { $ref: "#/components/schemas/AgreementOverview" },
+          {
+            type: "object",
+            required: [
+              "id",
+              "task_id",
+              "owner_id",
+              "captain_id",
+              "state",
+              "terms",
+              "created_at",
+            ],
+            properties: {
+              id: uuid,
+              task_id: uuid,
+              owner_id: uuid,
+              captain_id: uuid,
+              state: str,
+              created_at: { type: "string", format: "date-time" },
+              terms: {
+                type: "object",
+                description:
+                  "Existing immutable agreement terms, including taskTitle, description, rewardCents, dueDate and milestones; retained after campus expiry.",
+              },
+            },
+          },
+        ],
+      },
+      WorkspaceOrder: object({
+        id: uuid,
+        product_id: uuid,
+        buyer_id: uuid,
+        seller_id: uuid,
+        total_cents: { type: "integer" },
+        delivery_method: str,
+        state: str,
+        reserved_until: { type: "string", format: "date-time" },
+        created_at: { type: "string", format: "date-time" },
+        terms: {
+          type: "object",
+          description:
+            "Existing immutable order terms, retained after campus expiry. No shipping address in list DTO.",
+        },
+      }),
+      WorkspaceTask: {
+        type: "object",
+        required: [
+          "id",
+          "owner_id",
+          "title",
+          "category",
+          "description",
+          "reward_cents",
+          "due_date",
+          "status",
+          "revision",
+          "created_at",
+        ],
+        properties: {
+          id: uuid,
+          owner_id: uuid,
+          title: str,
+          category: str,
+          description: str,
+          reward_cents: { type: "integer" },
+          due_date: {
+            anyOf: [{ type: "string", format: "date" }, { type: "null" }],
+          },
+          status: str,
+          revision: positive,
+          created_at: { type: "string", format: "date-time" },
+        },
+      },
+      WorkspaceProduct: object({
+        id: uuid,
+        seller_id: uuid,
+        title: str,
+        description: str,
+        price_cents: { type: "integer" },
+        stock: { type: "integer" },
+        delivery_methods: {
+          type: "array",
+          items: { enum: ["pickup", "shipping"] },
+        },
+        shipping_cents: { type: "integer" },
+        revision: positive,
+        created_at: { type: "string", format: "date-time" },
+      }),
       ConversationScope: object({
         type: { enum: ["agreement", "order", "application"] },
         id: uuid,

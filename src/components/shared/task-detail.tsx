@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { historyDetailUrl } from "./history-pagination";
 import { useRef, useState } from "react";
 import { useMutation, useResource } from "./api";
 import {
@@ -23,18 +24,19 @@ export function TaskDetail({
   account: Account;
   openAgreement: (id: string) => void;
 }) {
-  const router = useRouter();
+  const router = useRouter(),
+    query = useSearchParams();
   const proposalInput = useRef<HTMLTextAreaElement>(null);
   const task = useResource<Task>(`tasks/${id}`),
     applications = useResource<Application[]>(`tasks/${id}/applications`),
     teams = useResource<Team[]>(account.can_apply ? "teams" : null),
-    saved = useResource<Task[]>("saved/tasks");
+    saved = useResource<{ id: string; saved: boolean }>(`saved/tasks/${id}`);
   const mutation = useMutation(account.id),
     save = useMutation(account.id),
     [proposal, setProposal] = useState(""),
     [teamId, setTeamId] = useState("");
   const t = task.data,
-    isSaved = saved.data?.some((v) => v.id === id),
+    isSaved = saved.data?.saved,
     alreadyApplied = applications.data?.find(
       (a) =>
         a.applicant_id === account.id &&
@@ -55,8 +57,10 @@ export function TaskDetail({
           <strong>{money(t.reward_cents)}</strong>
           <button
             className="cb-button"
-            aria-pressed={!!isSaved}
-            disabled={save.busy || !saved.data}
+            aria-pressed={isSaved}
+            disabled={
+              save.busy || saved.loading || !!saved.error || !saved.data
+            }
             onClick={async () => {
               const result = await save.run(
                 `saved/tasks/${id}`,
@@ -69,7 +73,13 @@ export function TaskDetail({
               if (result) saved.reload();
             }}
           >
-            {isSaved ? "Saved ✓" : "Save bounty"}
+            {saved.error
+              ? "Saved status unavailable"
+              : isSaved === undefined
+                ? "Checking saved status…"
+                : isSaved
+                  ? "Saved ✓"
+                  : "Save bounty"}
           </button>
         </div>
       </div>
@@ -90,7 +100,12 @@ export function TaskDetail({
             <h2>Your application is {alreadyApplied.state}</h2>
             <Link
               className="cb-button cb-primary"
-              href={`/?view=workspace&resource=application&id=${alreadyApplied.id}`}
+              href={historyDetailUrl(
+                query,
+                "workspace",
+                alreadyApplied.id,
+                "application",
+              )}
             >
               Chat about your application
             </Link>
@@ -118,6 +133,7 @@ export function TaskDetail({
         )}
       </section>
       <Feedback {...save} />
+      {saved.error && <ResourceState {...saved} />}
       {t.status !== "open" && (
         <section className="cb-panel" aria-label="Recruitment and fulfillment">
           <h2>Recruitment closed</h2>
@@ -133,7 +149,12 @@ export function TaskDetail({
               </p>
               <Link
                 className="cb-button"
-                href={`/?view=workspace&tab=agreements&resource=agreement&id=${t.related_agreement.id}`}
+                href={historyDetailUrl(
+                  query,
+                  "workspace",
+                  t.related_agreement.id,
+                  "agreement",
+                )}
               >
                 Open linked agreement
               </Link>
@@ -195,6 +216,12 @@ export function TaskDetail({
                   task.reload();
                 }}
                 openAgreement={openAgreement}
+                discussionUrl={historyDetailUrl(
+                  query,
+                  "workspace",
+                  a.id,
+                  "application",
+                )}
               />
             </section>
           ))}
@@ -254,7 +281,7 @@ export function TaskDetail({
                   applications.reload();
                   setProposal("");
                   router.push(
-                    `/?view=workspace&resource=application&id=${r.id}`,
+                    historyDetailUrl(query, "workspace", r.id, "application"),
                   );
                 }
               }}

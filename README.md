@@ -13,10 +13,11 @@
 - 消息历史、参与人、搜索、通知定位、草稿保留及未知发送状态恢复。
 - 成果版本、要求修改、再次提交、验收和协作完成；完成不表示已付款。
 - 校园资格、本地审核、团队管理、商品报价/订单及未付款取消。
+- Workspace五类历史和Saved完整分页、准确旧收藏状态、详情返回原列表位置，以及手机收藏底部翻页。
 
 最新入口和双向聊天实测见 [Apply 与消息修复](docs/apply-chat-fix-delivery.md)。自动接收采用轮询，未验收生产推送或大规模容量。
 
-完整范围与未完成项目见 [交互清单](docs/interaction-completion.md)，本轮证据与限制见 [第十轮交付](docs/interaction-round10-delivery.md)。
+完整范围与未完成项目见 [交互清单](docs/interaction-completion.md)，本轮证据与限制见 [第十一轮交付](docs/interaction-round11-delivery.md)。
 
 ## 运行当前 PostgreSQL 交互演示
 
@@ -35,6 +36,8 @@ npm run interaction:preview
 `npm run dev` / `npm start` 仍提供较早的独立 SQLite 演示模式（3010端口），它不等同于上述共享 PostgreSQL 交互模式，也不代表当前云端部署。
 
 ## 验证
+
+第十一轮已完成有边界本地验收与独立限定复审。最后变更的定向数据库4项、组件回调3项、桌面/手机8组及类型检查通过；没有把本轮说成生产验收或完整套件重新运行。下面列出可用验证入口，并不表示本轮全部执行。
 
 ```sh
 npm test

@@ -13,12 +13,14 @@ export function ApplicationCard({
   owner = false,
   reload,
   openAgreement,
+  discussionUrl,
 }: {
   application: Application;
   account: Account;
   owner?: boolean;
   reload: () => void;
   openAgreement: (id: string) => void;
+  discussionUrl?: string;
 }) {
   const mutation = useMutation(account.id),
     mine = a.members.find((m) => m.user_id === account.id);
@@ -107,7 +109,10 @@ export function ApplicationCard({
       <p>
         <Link
           className="cb-button"
-          href={`/?view=workspace&tab=applications&resource=application&id=${a.id}`}
+          href={
+            discussionUrl ||
+            `/?view=workspace&tab=applications&resource=application&id=${a.id}`
+          }
         >
           Open application discussion
         </Link>
