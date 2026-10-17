@@ -144,6 +144,9 @@ export function Catalog({
         </form>
       )}
       <ResourceState {...resource} />
+      {saved && items && !resource.loading && !resource.error && (
+        <span hidden data-history-ready={query.toString()} />
+      )}
       {saved && (
         <HistoryPagination
           count={items?.length}
@@ -182,12 +185,20 @@ export function Catalog({
           ) : (
             <div className={kind === "task" ? "cb-list" : "cb-products"}>
               {items.map((item) => (
-                <article className="cb-listing" key={item.id}>
+                <article
+                  className="cb-listing"
+                  key={item.id}
+                  data-history-item={item.id}
+                  tabIndex={-1}
+                >
                   {"reward_cents" in item ? (
                     <>
                       <div className="cb-listing-copy">
                         <div className="cb-overline">
                           {item.category} <Status value={item.status} />
+                          {item.visibility === "paused" && (
+                            <Status value="paused" />
+                          )}
                         </div>
                         <h2>
                           <Link href={openUrl(item.id)}>{item.title}</Link>

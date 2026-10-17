@@ -1,10 +1,10 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { ApiError, useMutation, useResource } from "./api";
-import { money, type Account, type Task, type Application } from "./types";
-import { Feedback, ResourceState, Status } from "./ui";
-import { MilestoneRequirements, TargetDeliveryDate } from "./task-terms";
+import { useEffect, useRef } from "react";
+import { ApiError, useMutation } from "./api";
+import { type Account, type Application } from "./types";
+import { Feedback, Status } from "./ui";
+import { ApplicationTermsReview } from "./application-terms-review";
 import { ConfirmAction } from "./confirm-action";
 
 export function ApplicationCard({
@@ -22,11 +22,7 @@ export function ApplicationCard({
   openAgreement: (id: string) => void;
   discussionUrl?: string;
 }) {
-  const mutation = useMutation(account.id),
-    mine = a.members.find((m) => m.user_id === account.id);
-  const allConfirmed =
-    a.members.length > 0 && a.members.every((m) => m.confirmed);
-  const [review, setReview] = useState(false);
+  const mutation = useMutation(account.id);
   const cardHeading = useRef<HTMLHeadingElement>(null);
   const uncertain =
     !!mutation.error &&
@@ -38,42 +34,17 @@ export function ApplicationCard({
     if (["withdrawn", "declined", "superseded", "accepted"].includes(a.state))
       clear();
   }, [a.state, clear]);
-  const reviewHeading = useRef<HTMLHeadingElement>(null),
-    reviewButton = useRef<HTMLButtonElement>(null),
-    wasReviewing = useRef(false);
-  useEffect(() => {
-    if (review) reviewHeading.current?.focus();
-    else if (wasReviewing.current) reviewButton.current?.focus();
-    wasReviewing.current = review;
-  }, [review]);
-  const terms = useResource<Task>(
-    review && a.state === "invited" ? `tasks/${a.task_id}` : null,
-  );
-  const termsReady =
-    !terms.loading && !terms.error && terms.data?.id === a.task_id;
   async function act(action: string): Promise<boolean> {
-    if (action === "acceptance" && (!review || !termsReady)) return false;
     const r = await mutation.run<{ id: string }>(
       `applications/${a.id}/${action}`,
       {},
-      action === "consent"
-        ? "Your consent is recorded."
-        : action === "invitation"
-          ? "Invitation sent. The applicant must accept it."
-          : action === "withdrawal"
-            ? "Application withdrawn. Its history is kept."
-            : action === "rejection"
-              ? "Application declined. The applicant can see this in their workspace."
-              : "Agreement created.",
+      action === "withdrawal"
+        ? "Application withdrawn. Its history is kept."
+        : "Application declined. The applicant can see this in their workspace.",
     );
     if (r) {
       reload();
-      if (action === "acceptance") openAgreement(r.id);
-      else if (["withdrawal", "rejection"].includes(action)) {
-        wasReviewing.current = false;
-        setReview(false);
-        cardHeading.current?.focus();
-      }
+      cardHeading.current?.focus();
     }
     return !!r;
   }
@@ -87,25 +58,12 @@ export function ApplicationCard({
         <Status value={a.state} />
       </div>
       <p className="cb-prewrap">{a.proposal}</p>
-      <p>
-        {a.members.filter((m) => m.confirmed).length} of {a.members.length}{" "}
-        participants have agreed to this proposal.
-      </p>
-      <details>
-        <summary>Participant consent</summary>
-        <ul>
-          {a.members.map((m) => (
-            <li key={m.user_id}>
-              <span>
-                {m.user_id === account.id
-                  ? "You"
-                  : m.display_name || "Team member"}
-              </span>{" "}
-              — {m.confirmed ? "Agreed" : "Waiting for consent"}
-            </li>
-          ))}
-        </ul>
-      </details>
+      <ApplicationTermsReview
+        id={a.id}
+        account={account}
+        reload={reload}
+        openAgreement={openAgreement}
+      />
       <p>
         <Link
           className="cb-button"
@@ -127,98 +85,6 @@ export function ApplicationCard({
         >
           Refresh application status
         </button>
-      )}
-      {a.state === "applied" && mine && !mine.confirmed && (
-        <button
-          className="cb-button cb-primary"
-          disabled={mutation.busy || !account.can_apply}
-          onClick={() => void act("consent")}
-        >
-          Agree to this proposal
-        </button>
-      )}
-      {a.state === "applied" && owner && (
-        <>
-          <button
-            className="cb-button cb-primary"
-            disabled={mutation.busy || !allConfirmed}
-            onClick={() => void act("invitation")}
-          >
-            Invite this applicant
-          </button>
-          {!allConfirmed && (
-            <p className="cb-fine">
-              Every proposed member must agree before you can invite the team.
-            </p>
-          )}
-        </>
-      )}
-      {a.state === "invited" && a.applicant_id === account.id && (
-        <>
-          {!review ? (
-            <button
-              ref={reviewButton}
-              className="cb-button cb-primary"
-              onClick={() => setReview(true)}
-            >
-              Review invitation
-            </button>
-          ) : (
-            <div className="cb-alert">
-              <h4 ref={reviewHeading} tabIndex={-1}>
-                Review the bounty terms
-              </h4>
-              <ResourceState {...terms} />
-              {termsReady && terms.data && (
-                <>
-                  <p>
-                    <strong>{terms.data.title}</strong>
-                  </p>
-                  <p className="cb-prewrap">{terms.data.description}</p>
-                  <p>
-                    Total reward:{" "}
-                    <strong>{money(terms.data.reward_cents)}</strong>
-                  </p>
-                  <TargetDeliveryDate value={terms.data.due_date} />
-                  <ol className="cb-milestones">
-                    {terms.data.milestones.map((m) => (
-                      <li key={m.id}>
-                        <p>
-                          <strong>
-                            {m.title} · {money(m.amount_cents)}
-                          </strong>
-                        </p>
-                        <MilestoneRequirements milestone={m} />
-                      </li>
-                    ))}
-                  </ol>
-                </>
-              )}
-              <p>
-                Accepting locks this proposal, team roster, target delivery date
-                and milestone requirements into an agreement. Work must wait
-                until funding is confirmed. Payments are not enabled in this
-                preview.
-              </p>
-              <div className="cb-actions">
-                <button
-                  className="cb-button"
-                  disabled={mutation.busy}
-                  onClick={() => setReview(false)}
-                >
-                  Not now
-                </button>
-                <button
-                  className="cb-button cb-primary"
-                  disabled={mutation.busy || !account.can_apply || !termsReady}
-                  onClick={() => void act("acceptance")}
-                >
-                  Accept invitation
-                </button>
-              </div>
-            </div>
-          )}
-        </>
       )}
       {a.state === "accepted" && (
         <Link className="cb-text-button" href="/?view=workspace&tab=agreements">
@@ -250,8 +116,6 @@ export function ApplicationCard({
             busy={mutation.busy}
             uncertain={uncertain}
             onCheckStatus={() => {
-              wasReviewing.current = false;
-              setReview(false);
               cardHeading.current?.focus();
               reload();
             }}

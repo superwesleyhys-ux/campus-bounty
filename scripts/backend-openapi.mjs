@@ -7,6 +7,14 @@ import {
   revisionRequestSchema,
 } from "../backend/modules/fulfillment.mjs";
 import { notificationQuerySchema } from "../backend/modules/notifications.mjs";
+import {
+  taskEditSchema,
+  productEditSchema,
+  listingVisibilitySchema,
+  termsReviewSchema,
+  versionedApplySchema,
+} from "../backend/modules/listing-lifecycle.mjs";
+import { versionedQuoteSchema } from "../backend/modules/goods.mjs";
 import { productSchema } from "../backend/modules/goods.mjs";
 import {
   profileSchema,
@@ -84,13 +92,23 @@ const bodies = {
   "/teams/{id}/captain": z.toJSONSchema(teamTargetSchema),
   "/teams/{id}/archive": z.toJSONSchema(teamRevisionSchema),
   "/tasks": z.toJSONSchema(taskSchema),
-  "/tasks/{id}/applications": object(
-    { proposal: str, teamId: { anyOf: [uuid, { type: "null" }] } },
-    ["proposal"],
+  "/tasks/{id}/applications": z.toJSONSchema(versionedApplySchema),
+  "/tasks/{id}/edit": z.toJSONSchema(taskEditSchema),
+  "/products/{id}/edit": z.toJSONSchema(productEditSchema),
+  ...Object.fromEntries(
+    ["tasks", "products"].flatMap((k) =>
+      ["pause", "republish"].map((op) => [
+        `/${k}/{id}/${op}`,
+        z.toJSONSchema(listingVisibilitySchema),
+      ]),
+    ),
   ),
-  "/applications/{id}/consent": empty,
-  "/applications/{id}/invitation": empty,
-  "/applications/{id}/acceptance": empty,
+  ...Object.fromEntries(
+    ["consent", "invitation", "acceptance"].map((op) => [
+      `/applications/{id}/${op}`,
+      z.toJSONSchema(termsReviewSchema),
+    ]),
+  ),
   "/applications/{id}/withdrawal": empty,
   "/applications/{id}/rejection": empty,
   "/milestones/{id}/submissions": z.toJSONSchema(submissionSchema),
@@ -98,10 +116,7 @@ const bodies = {
   "/milestones/{id}/revision-requests": z.toJSONSchema(revisionRequestSchema),
   "/agreements/{id}/completion": empty,
   "/products": z.toJSONSchema(productSchema),
-  "/products/{id}/quotes": object({
-    quantity: { type: "integer", minimum: 1, maximum: 100 },
-    deliveryMethod: { enum: ["pickup", "shipping"] },
-  }),
+  "/products/{id}/quotes": z.toJSONSchema(versionedQuoteSchema),
   "/orders": object({ quoteId: uuid, shippingAddress: address }, ["quoteId"]),
   "/orders/{id}/fulfillment": object({ carrier: str, trackingNumber: str }, []),
   "/orders/{id}/receipt": empty,
@@ -151,7 +166,7 @@ async function walk(dir, prefix = "") {
             name: match[1],
             in: "path",
             required: true,
-            schema: uuid,
+            schema: match[1] === "version" ? positive : uuid,
           });
         if (write) {
           parameters.push({
@@ -1207,6 +1222,205 @@ const spec = {
     },
   },
 };
+const ref = (name) => ({ $ref: `#/components/schemas/${name}` });
+const nullable = (schema) => ({ anyOf: [schema, { type: "null" }] });
+const listingState = {
+  type: "object",
+  required: ["id", "revision", "terms_version", "visibility"],
+  properties: {
+    id: uuid,
+    revision: positive,
+    terms_version: positive,
+    visibility: { enum: ["published", "paused"] },
+    stock_revision: positive,
+    stock: { type: "integer", minimum: 0 },
+  },
+};
+Object.assign(spec.components.schemas, {
+  ListingVersion: object({
+    kind: { enum: ["task", "product"] },
+    listing_id: uuid,
+    version: positive,
+    terms: {
+      oneOf: [z.toJSONSchema(taskSchema), z.toJSONSchema(productSchema)],
+    },
+    provenance: {
+      enum: ["legacy_observed_current", "published", "owner_edit"],
+    },
+    actor_id: nullable(uuid),
+    created_at: { type: "string", format: "date-time" },
+  }),
+  ListingReceipt: object({
+    id: uuid,
+    kind: { enum: ["task", "product"] },
+    operation: { enum: ["edit", "pause", "republish"] },
+    revision: positive,
+    termsVersion: positive,
+    visibility: { enum: ["published", "paused"] },
+  }),
+  ListingCommandResult: object({
+    receipt: ref("ListingReceipt"),
+    replayed: { type: "boolean" },
+    current: listingState,
+  }),
+  TermsAcknowledgement: object({
+    user_id: uuid,
+    version: positive,
+    acknowledged_at: { type: "string", format: "date-time" },
+  }),
+  VersionInvitation: {
+    type: "object",
+    required: ["version", "task_revision", "publisher_id", "created_at"],
+    properties: {
+      application_id: uuid,
+      version: positive,
+      task_revision: positive,
+      publisher_id: uuid,
+      created_at: { type: "string", format: "date-time" },
+    },
+  },
+  ApplicationTerms: object({
+    application: {
+      type: "object",
+      required: [
+        "id",
+        "task_id",
+        "applicant_id",
+        "proposal",
+        "state",
+        "submitted_version",
+        "provenance",
+      ],
+      properties: {
+        id: uuid,
+        task_id: uuid,
+        applicant_id: uuid,
+        proposal: str,
+        state: str,
+        submitted_version: positive,
+        provenance: {
+          enum: [
+            "legacy_observed_current",
+            "unversioned_submission",
+            "exact_submission",
+          ],
+        },
+      },
+    },
+    listing: listingState,
+    versions: { type: "array", maxItems: 2, items: ref("ListingVersion") },
+    members: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["user_id", "confirmed"],
+        properties: {
+          user_id: uuid,
+          display_name: nullable(str),
+          confirmed: { type: "boolean" },
+        },
+      },
+    },
+    acknowledgements: { type: "array", items: ref("TermsAcknowledgement") },
+    invitations: {
+      type: "array",
+      maxItems: 1,
+      items: ref("VersionInvitation"),
+    },
+    missingAcknowledgements: { type: "array", items: uuid },
+    currentInvitation: nullable(ref("VersionInvitation")),
+    reviewRequired: { type: "boolean" },
+    legacyProvenance: { type: "boolean" },
+  }),
+  ApplicationTermsResult: object({
+    receipt: {
+      type: "object",
+      required: ["id"],
+      properties: {
+        id: uuid,
+        operation: str,
+        termsVersion: positive,
+        revision: positive,
+        agreementId: nullable(uuid),
+        originalAgreement: { type: "boolean" },
+      },
+    },
+    replayed: { type: "boolean" },
+    current: ref("ApplicationTerms"),
+  }),
+  ApplicationTermsHistory: object({
+    items: {
+      type: "array",
+      maxItems: 50,
+      items: { oneOf: [ref("TermsAcknowledgement"), ref("VersionInvitation")] },
+    },
+    limit: { type: "integer", minimum: 1, maximum: 50 },
+    next: nullable({
+      oneOf: [
+        object({ beforeVersion: positive, beforeUser: uuid }),
+        object({ beforeVersion: positive, beforeRevision: positive }),
+      ],
+    }),
+  }),
+});
+for (const [path, methods] of Object.entries(paths))
+  for (const [verb, op] of Object.entries(methods)) {
+    let schema;
+    if (/^\/(tasks|products)\/\{id\}\/(edit|pause|republish)$/.test(path))
+      schema = ref("ListingCommandResult");
+    else if (
+      (path === "/tasks/{id}/applications" && verb === "post") ||
+      /^\/applications\/\{id\}\/(consent|invitation|acceptance)$/.test(path)
+    )
+      schema = ref("ApplicationTermsResult");
+    else if (path === "/applications/{id}/terms")
+      schema = ref("ApplicationTerms");
+    else if (path === "/applications/{id}/terms/history") {
+      schema = ref("ApplicationTermsHistory");
+      op.parameters.push(
+        ...Object.entries({
+          kind: { enum: ["acknowledgements", "invitations"] },
+          limit: { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          beforeVersion: positive,
+          beforeUser: uuid,
+          beforeRevision: positive,
+        }).map(([name, schema]) => ({
+          name,
+          in: "query",
+          required: name === "kind",
+          schema,
+        })),
+      );
+    } else if (/\/versions\/\{version\}$/.test(path))
+      schema = ref("ListingVersion");
+    else if (/\/versions$/.test(path)) {
+      schema = { type: "array", maxItems: 50, items: ref("ListingVersion") };
+      op.parameters.push(
+        {
+          name: "limit",
+          in: "query",
+          schema: { type: "integer", minimum: 1, maximum: 50, default: 20 },
+        },
+        { name: "beforeVersion", in: "query", schema: positive },
+      );
+    }
+    if (schema) {
+      for (const [status, response] of Object.entries(op.responses))
+        if (status.startsWith("2"))
+          response.content["application/json"].schema = schema;
+      op.description =
+        "Exact listing version contract. Writes require displayed expected revision and actor-scoped Idempotency-Key. Unknown results retry the identical body/key. Receipt is original; current is freshly authorized and can differ. Consent requires each frozen participant and fresh publisher invitation. Histories are bounded with explicit continuation; legacy observed snapshots are not historical consent. Pause preserves agreements and orders.";
+    }
+  }
+spec.components.schemas.Notification.properties.listingContext = nullable(
+  object({
+    kind: { enum: ["task", "product"] },
+    id: uuid,
+    termsVersion: positive,
+    revision: positive,
+  }),
+);
+spec.components.schemas.Notification.required.push("listingContext");
 await writeFile(
   new URL("../docs/backend-openapi.json", import.meta.url),
   JSON.stringify(spec, null, 2) + "\n",

@@ -1,6 +1,6 @@
 # Listing editing and visibility: current-source preflight
 
-2026-10-17. Read-only preparation for the next product increment; not implemented or accepted. Round11 final fixes remain the active implementation.
+2026-10-17. Read-only preparation for the next product increment; not implemented or accepted. Round11 has passed local acceptance; the next implementation is now planned in interaction-round12-plan.md.
 
 ## Verified gap
 
@@ -27,4 +27,4 @@ Current task/product modules expose list/detail/publish but no edit or visibilit
 - Do not infer a new moderation/payment/refund policy or silently close unpaid/active obligations. Publishing review policy and full agreement changes remain within the full objective, separately implemented as their actual dependencies become available.
 - Verification must include owner/nonowner/current-account checks, immutable prior versions and obligations, stale edit/quote rejection, idempotent recovery, public removal/republish, actual desktop/mobile UI and independent skill trial. Test ordinary business operations on synthetic isolated fixtures; preserve the existing exclusions on forced-revocation/paused-lock/raw-insert diagnostics.
 
-Next action after Round11 accepted: convert these findings into the next scoped implementation plan and its review gates. This preflight is not a feature delivery, not a completed test, and does not reduce the original full-application goal.
+Next action: execute interaction-round12-plan.md with schema/service foundation and a verified preview-upgrade gate before live integration. This preflight is not a feature delivery, not a completed test, and does not reduce the original full-application goal.

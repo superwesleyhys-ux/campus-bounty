@@ -1,4 +1,4 @@
-# Campus Bounty · 校园悬赏令
+# Campus Bounty · 美国大学悬赏令
 
 私有开发仓库。面向高校社区的任务申请、团队协作、履约及商品交易应用，英文界面。
 
@@ -13,11 +13,13 @@
 - 消息历史、参与人、搜索、通知定位、草稿保留及未知发送状态恢复。
 - 成果版本、要求修改、再次提交、验收和协作完成；完成不表示已付款。
 - 校园资格、本地审核、团队管理、商品报价/订单及未付款取消。
-- Workspace五类历史和Saved完整分页、准确旧收藏状态、详情返回原列表位置，以及手机收藏底部翻页。
+- Workspace五类历史和Saved完整分页、准确旧收藏状态，以及手机收藏底部翻页。
+- 发布后编辑、暂停和重新发布；申请人与冻结成员明确确认新版本，已有协议和订单保留原条款。
+- 旧页返回恢复原卡片阅读位置，条款审阅关闭恢复焦点；配送方式变化后明确刷新报价。
 
 最新入口和双向聊天实测见 [Apply 与消息修复](docs/apply-chat-fix-delivery.md)。自动接收采用轮询，未验收生产推送或大规模容量。
 
-完整范围与未完成项目见 [交互清单](docs/interaction-completion.md)，本轮证据与限制见 [第十一轮交付](docs/interaction-round11-delivery.md)。
+完整范围与未完成项目见 [交互清单](docs/interaction-completion.md)，本轮证据与限制见 [第十二轮交付](docs/interaction-round12-delivery.md)。
 
 ## 运行当前 PostgreSQL 交互演示
 
@@ -37,21 +39,17 @@ npm run interaction:preview
 
 ## 验证
 
-第十一轮已完成有边界本地验收与独立限定复审。最后变更的定向数据库4项、组件回调3项、桌面/手机8组及类型检查通过；没有把本轮说成生产验收或完整套件重新运行。下面列出可用验证入口，并不表示本轮全部执行。
+第十二轮已完成有边界本地验收及独立限定复审，五项最终修复全部确认解决。最终两份定向后端测试11/11、类型检查和隔离构建通过；修后工程页面操作与修前独立试用分别保留证据。构建中的SQLite实验性警告仍在。没有重新运行完整套件或进行生产验收。
+
+本轮实际使用的验证命令：
 
 ```sh
-npm test
+node --test tests/backend/listing-lifecycle.test.mjs tests/backend/listing-index.test.mjs
 npm run typecheck
-CAMPUS_BUILD_DIR=.next-release npm run build
+CAMPUS_BUILD_DIR=.next-release CAMPUS_BACKEND=postgres CAMPUS_DEMO=0 npm run build
 ```
 
-需要完整允许后端检查时，使用明确排除历史受限场景的命令：
-
-```sh
-node --test --test-skip-pattern='^send gate remains held during key wait and rechecks clock expiry before releasing a cached receipt$' tests/backend/*.test.mjs tests/independent/*/*.test.mjs
-```
-
-不要在此次验收范围内直接运行未过滤的 `npm run test:backend`。独立目录中保留的非 `.test` 强制撤权诊断源文件仅作历史证据，不应执行或换方式重建。历史测试执行偏差和未取得视频证据均在交付说明中披露。
+不要直接运行未过滤的完整后端套件。历史受限的强制撤权、暂停锁和原始业务插入诊断仅保留作证据，不应执行或换方式重建。历史测试执行偏差、失败记录和未取得视频证据均在交付说明中披露。其他测试应按具体修改范围选择，不能用历史总数声称当前全站通过。
 
 浏览器测试需要 Playwright；环境未安装时用 `PLAYWRIGHT_MODULE` 指定现有模块路径。额外的 OpenAPI 语义检查使用 Python `jsonschema`：`python3 tests/conversation-openapi-schema.test.py`。数据库测试使用隔离本地测试库。
 

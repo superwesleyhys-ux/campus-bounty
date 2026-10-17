@@ -32,14 +32,20 @@ const addressSchema = z.strictObject({
   postalCode: z.string().trim().min(1).max(20),
   country: z.literal("US"),
 });
+export const versionedQuoteSchema = z.strictObject({
+  quantity: z.number().int().min(1).max(100),
+  deliveryMethod: z.enum(["pickup", "shipping"]),
+  expectedRevision: z.number().int().min(1),
+  expectedTermsVersion: z.number().int().min(1),
+});
 export function goodsModule(store) {
   const { read, privateRead, command } = context(store);
-  return {
+  const methods = {
     products: async (actor, input) => {
       const p = catalogQuery(input);
       return read(actor, async (c) => {
         const where =
-          "WHERE (title ILIKE $1 OR description ILIKE $1) AND ($2::uuid IS NULL OR seller_id=$2)";
+          "WHERE (title ILIKE $1 OR description ILIKE $1) AND ($2::uuid IS NULL OR seller_id=$2) AND ($2::uuid IS NOT NULL OR visibility='published')";
         const args = [searchPattern(p.q), p.scope === "mine" ? actor : null];
         const sort = {
           recent: "created_at DESC",
@@ -49,7 +55,7 @@ export function goodsModule(store) {
         return {
           items: (
             await c.query(
-              `SELECT id,seller_id,title,description,price_cents,stock,delivery_methods,shipping_cents,revision,created_at FROM campus.products ${where} ORDER BY ${sort},id DESC LIMIT $3 OFFSET $4`,
+              `SELECT id,seller_id,title,description,price_cents,stock,delivery_methods,shipping_cents,revision,terms_version,visibility,stock_revision,created_at FROM campus.products ${where} ORDER BY ${sort},id DESC LIMIT $3 OFFSET $4`,
               [...args, p.limit, p.offset],
             )
           ).rows,
@@ -103,6 +109,8 @@ export function goodsModule(store) {
         z.strictObject({
           quantity: z.number().int().min(1).max(100),
           deliveryMethod: z.enum(["pickup", "shipping"]),
+          expectedRevision: z.number().int().min(1).optional(),
+          expectedTermsVersion: z.number().int().min(1).optional(),
         }),
         input,
       );
@@ -111,6 +119,21 @@ export function goodsModule(store) {
           (await c.query("SELECT * FROM campus.products WHERE id=$1", [id]))
             .rows[0],
         );
+        if (d.expectedRevision !== undefined) {
+          requireThat(
+            p.visibility === "published",
+            409,
+            "listing_unavailable",
+            "This listing is paused. Existing orders continue.",
+          );
+          requireThat(
+            p.revision === d.expectedRevision &&
+              p.terms_version === d.expectedTermsVersion,
+            409,
+            "stale_revision",
+            "This listing changed. Review the latest terms before requesting a quote.",
+          );
+        }
         requireThat(
           p.seller_id !== actor,
           409,
@@ -138,7 +161,8 @@ export function goodsModule(store) {
           "The order amount exceeds the supported limit.",
         );
         return (
-          await c.query(
+          await quoteSql(
+            c,
             "INSERT INTO campus.quotes(product_id,buyer_id,seller_id,product_revision,quantity,unit_cents,shipping_cents,delivery_method,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,now()+interval '10 minutes') RETURNING *",
             [
               id,
@@ -295,9 +319,27 @@ export function goodsModule(store) {
         ).rows[0].count,
       ),
   };
+  return {
+    ...methods,
+    quoteVersioned: (actor, id, input, key) =>
+      methods.quote(actor, id, parse(versionedQuoteSchema, input), key),
+  };
+}
+async function quoteSql(c, sql, values) {
+  try {
+    return await c.query(sql, values);
+  } catch (e) {
+    const p = orderProblems[e.message];
+    if (e.code === "P0001" && p) requireThat(false, p[0], e.message, p[1]);
+    throw e;
+  }
 }
 
 const orderProblems = {
+  listing_unavailable: [
+    409,
+    "This listing is paused. Existing orders continue.",
+  ],
   membership_required: [
     403,
     "A current verified campus membership is required.",

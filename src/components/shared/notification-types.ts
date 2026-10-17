@@ -6,6 +6,12 @@ export type Notification = {
   title: string;
   description: string;
   contextLabel: string | null;
+  listingContext: null | {
+    kind: "task" | "product";
+    id: string;
+    termsVersion: number;
+    revision: number;
+  };
   workContext: null | {
     type: "milestone";
     milestoneId: string;
@@ -52,8 +58,13 @@ export function notificationHref(item: Notification): string | null {
     item.kind === "message.received" && item.messageContext
       ? `&messageId=${encodeURIComponent(item.messageContext.messageId)}`
       : "";
+  const listing = item.listingContext
+    ? `&listingId=${encodeURIComponent(item.listingContext.id)}&listingVersion=${item.listingContext.termsVersion}`
+    : "";
   switch (target.type) {
     case "application":
+      if (listing)
+        return `/?view=workspace&tab=applications&resource=application&id=${id}${listing}`;
       if (item.kind === "message.received")
         return `/?view=workspace&tab=applications&resource=application&id=${id}${message}`;
       return target.taskId
@@ -62,7 +73,7 @@ export function notificationHref(item: Notification): string | null {
     case "agreement":
       return `/?view=workspace&tab=agreements&resource=agreement&id=${id}${message}${item.navigationAnchor?.type === "milestone" ? `#${item.navigationAnchor.reviewId ? "review" : "submission"}-${encodeURIComponent(item.navigationAnchor.reviewId || item.navigationAnchor.submissionId)}` : ""}`;
     case "order":
-      return `/?view=workspace&tab=orders&resource=order&id=${id}${message}`;
+      return `/?view=workspace&tab=orders&resource=order&id=${id}${message}${listing}`;
     case "team":
       return `/?view=teams#team-${id}`;
     case "eligibility":

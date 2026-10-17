@@ -25,6 +25,8 @@ export type Milestone = {
   accepted_submission_id?: string | null;
 };
 export type Task = {
+  visibility: "published" | "paused";
+  terms_version: number;
   id: string;
   owner_id: string;
   title: string;
@@ -39,6 +41,10 @@ export type Task = {
   milestones: Milestone[];
 };
 export type Product = {
+  visibility: "published" | "paused";
+  terms_version: number;
+  revision: number;
+  stock_revision: number;
   id: string;
   seller_id: string;
   title: string;

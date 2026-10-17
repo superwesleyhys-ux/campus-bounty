@@ -9,6 +9,8 @@ import { SampleSwitcher } from "./sample-switcher";
 import { SignIn } from "./auth";
 import { Catalog } from "./catalog";
 import { historyDetailUrl } from "./history-pagination";
+import { useHistoryReturn } from "./history-return";
+import { ListingEditor } from "./listing-editor";
 import { Publish } from "./publish";
 import { TaskDetail } from "./task-detail";
 import { ProductDetail } from "./product-detail";
@@ -50,6 +52,11 @@ export default function SharedCampus({
   const [expired, setExpired] = useState(false),
     main = useRef<HTMLElement>(null),
     logout = useMutation("session");
+  const rememberHistory = useHistoryReturn(
+    main,
+    me.loading || me.error ? undefined : me.data?.id,
+    query.toString(),
+  );
   useEffect(() => {
     const expire = () => {
       setExpired(true);
@@ -71,13 +78,6 @@ export default function SharedCampus({
     };
   }, [me.reload]);
   useEffect(() => {
-    const eligibility =
-      view === "account" && window.location.hash === "#student-eligibility"
-        ? document.getElementById("student-eligibility")
-        : null;
-    (eligibility || main.current)?.focus({ preventScroll: true });
-    if (eligibility) eligibility.scrollIntoView();
-    else window.scrollTo({ top: 0 });
     document.title = `${id ? "Details" : view === "eligibility-review" ? "Student reviews" : navigation.find((n) => n[0] === view)?.[1] || "Post a listing"} · Campus Bounty`;
   }, [view, id, me.data?.id]);
   useEffect(() => {
@@ -107,6 +107,7 @@ export default function SharedCampus({
   const back = new URLSearchParams(query.toString());
   back.delete("id");
   back.delete("resource");
+  back.delete("edit");
   const returnView = query.get("returnView");
   if (["workspace", "saved", "bounties", "market"].includes(returnView || ""))
     back.set("view", returnView!);
@@ -180,7 +181,13 @@ export default function SharedCampus({
           ),
         )}
       </nav>
-      <main id="shared-main" tabIndex={-1} ref={main} className="cb-main">
+      <main
+        id="shared-main"
+        tabIndex={-1}
+        ref={main}
+        className="cb-main"
+        onClickCapture={rememberHistory}
+      >
         <Feedback error={logout.error} />
         {me.loading && !account ? (
           <ResourceState {...me} />
@@ -241,16 +248,30 @@ export default function SharedCampus({
             )}
             {(view === "bounties" || view === "saved") &&
               (id ? (
-                <TaskDetail
-                  key={`${account.id}:${id}`}
-                  id={id}
-                  account={account}
-                  openAgreement={(value) =>
-                    router.push(
-                      historyDetailUrl(query, "workspace", value, "agreement"),
-                    )
-                  }
-                />
+                query.get("edit") === "1" ? (
+                  <ListingEditor
+                    key={`${account.id}:${id}`}
+                    id={id}
+                    kind="task"
+                    account={account}
+                  />
+                ) : (
+                  <TaskDetail
+                    key={`${account.id}:${id}`}
+                    id={id}
+                    account={account}
+                    openAgreement={(value) =>
+                      router.push(
+                        historyDetailUrl(
+                          query,
+                          "workspace",
+                          value,
+                          "agreement",
+                        ),
+                      )
+                    }
+                  />
+                )
               ) : (
                 <Catalog
                   key={`${account.id}:${view}`}
@@ -261,16 +282,25 @@ export default function SharedCampus({
               ))}
             {view === "market" &&
               (id ? (
-                <ProductDetail
-                  key={`${account.id}:${id}`}
-                  id={id}
-                  account={account}
-                  openOrder={(value) =>
-                    router.push(
-                      historyDetailUrl(query, "workspace", value, "order"),
-                    )
-                  }
-                />
+                query.get("edit") === "1" ? (
+                  <ListingEditor
+                    key={`${account.id}:${id}`}
+                    id={id}
+                    kind="product"
+                    account={account}
+                  />
+                ) : (
+                  <ProductDetail
+                    key={`${account.id}:${id}`}
+                    id={id}
+                    account={account}
+                    openOrder={(value) =>
+                      router.push(
+                        historyDetailUrl(query, "workspace", value, "order"),
+                      )
+                    }
+                  />
+                )
               ) : (
                 <Catalog
                   key={`${account.id}:${view}`}

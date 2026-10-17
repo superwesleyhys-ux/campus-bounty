@@ -17,6 +17,18 @@ export const reviewSchema = z.strictObject({
 export const revisionRequestSchema = reviewSchema.extend({ feedback: text });
 
 const errors = {
+  terms_review_required: [
+    409,
+    "Every frozen participant must explicitly review and confirm the current terms version.",
+  ],
+  fresh_invitation_required: [
+    409,
+    "The publisher must issue a fresh invitation for the current version and revision.",
+  ],
+  listing_unavailable: [
+    409,
+    "This listing is paused or no longer available for new activity.",
+  ],
   invalid_input: [422, "Request fields are invalid."],
   not_found: [404, "Resource not found."],
   account_locked: [403, "This account cannot access private resources."],

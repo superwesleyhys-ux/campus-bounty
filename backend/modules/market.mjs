@@ -1,3 +1,4 @@
+import { listingLifecycleModule } from "./listing-lifecycle.mjs";
 import { workspaceHistoryModule } from "./workspace-history.mjs";
 import { conversationInboxModule } from "./conversation-inbox.mjs";
 import { notificationModule } from "./notifications.mjs";
@@ -16,5 +17,6 @@ export function createMarket(store, options = {}) {
     ...conversationModule(store),
     ...conversationInboxModule(store),
     ...accountModule(store, options),
+    ...listingLifecycleModule(store),
   };
 }

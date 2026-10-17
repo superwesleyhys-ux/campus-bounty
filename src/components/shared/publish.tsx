@@ -509,8 +509,9 @@ export function Publish({
               collect or transfer money.
             </p>
             <p>
-              Listing terms cannot be edited after publishing in this version.
-              Please check them carefully.
+              You can edit or pause this listing after publishing. Signed
+              agreements and existing orders keep their original terms. Changes
+              require participants to review the new version.
             </p>
           </>
         )}

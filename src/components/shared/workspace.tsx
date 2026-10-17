@@ -82,6 +82,9 @@ export function Workspace({ account }: { account: Account }) {
         </p>
       )}
       <ResourceState {...resource} />
+      {items && !resource.loading && !resource.error && (
+        <span hidden data-history-ready={query.toString()} />
+      )}
       <HistoryPagination
         count={items?.length}
         nextCursor={resource.data?.nextCursor}
@@ -118,7 +121,12 @@ export function Workspace({ account }: { account: Account }) {
       {items?.map((item) => {
         if ("proposal" in item)
           return (
-            <section key={item.id} id={`application-${item.id}`} tabIndex={-1}>
+            <section
+              key={item.id}
+              id={`application-${item.id}`}
+              tabIndex={-1}
+              data-history-item={item.id}
+            >
               <h2>
                 {account.campus_verified ? (
                   <Link href={detail("bounties", item.task_id)}>
@@ -143,6 +151,8 @@ export function Workspace({ account }: { account: Account }) {
           return (
             <article
               key={item.id}
+              data-history-item={item.id}
+              tabIndex={-1}
               className="cb-panel cb-row cb-agreement-card"
             >
               <div>
@@ -167,7 +177,12 @@ export function Workspace({ account }: { account: Account }) {
           );
         if ("buyer_id" in item)
           return (
-            <article key={item.id} className="cb-panel cb-row">
+            <article
+              key={item.id}
+              className="cb-panel cb-row"
+              data-history-item={item.id}
+              tabIndex={-1}
+            >
               <div>
                 <h2>
                   <Link href={detail("workspace", item.id, "order")}>
@@ -183,7 +198,12 @@ export function Workspace({ account }: { account: Account }) {
             </article>
           );
         return (
-          <article key={item.id} className="cb-panel cb-row">
+          <article
+            key={item.id}
+            className="cb-panel cb-row"
+            data-history-item={item.id}
+            tabIndex={-1}
+          >
             <h2>
               <Link
                 href={detail(
@@ -199,6 +219,15 @@ export function Workspace({ account }: { account: Account }) {
                 "reward_cents" in item ? item.reward_cents : item.price_cents,
               )}
             </strong>
+            <p>
+              {item.visibility} · version {item.terms_version}
+            </p>
+            <Link
+              className="cb-button"
+              href={`${detail("reward_cents" in item ? "bounties" : "market", item.id)}&edit=1`}
+            >
+              {"reward_cents" in item ? "Edit bounty" : "Edit listing"}
+            </Link>
           </article>
         );
       })}

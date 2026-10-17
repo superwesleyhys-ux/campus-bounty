@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { historyDetailUrl } from "./history-pagination";
 import { useEffect, useRef } from "react";
 import { ApiError, useMutation, useResource } from "./api";
+import { ListingEventVersion } from "./listing-event-version";
 import { ConfirmAction } from "./confirm-action";
 import { Conversation } from "./conversation";
 import { money, type Account, type Order } from "./types";
@@ -38,6 +39,7 @@ export function OrderDetail({ id, account }: { id: string; account: Account }) {
         </div>
         <strong className="cb-price">{money(order.total_cents)}</strong>
       </div>
+      <ListingEventVersion kind="product" id={order.product_id} />
       <div className="cb-detail-grid cb-conversation-detail">
         <section>
           <div className="cb-panel">

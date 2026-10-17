@@ -118,7 +118,7 @@ export function taskModule(store) {
       const p = catalogQuery(input, true);
       return read(actor, async (c) => {
         const where =
-          "WHERE (title ILIKE $1 OR description ILIKE $1) AND ($2::text IS NULL OR category=$2) AND ($3::uuid IS NULL OR owner_id=$3)";
+          "WHERE (title ILIKE $1 OR description ILIKE $1) AND ($2::text IS NULL OR category=$2) AND ($3::uuid IS NULL OR owner_id=$3) AND ($3::uuid IS NOT NULL OR visibility='published')";
         const args = [
           searchPattern(p.q),
           p.category || null,
@@ -132,7 +132,7 @@ export function taskModule(store) {
         return {
           items: (
             await c.query(
-              `SELECT id,owner_id,title,category,description,reward_cents,to_char(due_date,'YYYY-MM-DD') AS due_date,status,revision,created_at FROM campus.tasks ${where} ORDER BY ${sort},id DESC LIMIT $4 OFFSET $5`,
+              `SELECT id,owner_id,title,category,description,reward_cents,to_char(due_date,'YYYY-MM-DD') AS due_date,status,visibility,terms_version,revision,created_at FROM campus.tasks ${where} ORDER BY ${sort},id DESC LIMIT $4 OFFSET $5`,
               [...args, p.limit, p.offset],
             )
           ).rows,
@@ -331,7 +331,8 @@ export function taskModule(store) {
             "You already applied to this task.",
           );
           const app = (
-            await c.query(
+            await workSql(
+              c,
               "INSERT INTO campus.applications(task_id,applicant_id,team_id,proposal) VALUES($1,$2,$3,$4) RETURNING *",
               [id, actor, data.teamId, data.proposal],
             )

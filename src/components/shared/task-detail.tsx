@@ -1,9 +1,12 @@
 "use client";
+import { ListingManagement } from "./listing-management";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { historyDetailUrl } from "./history-pagination";
-import { useRef, useState } from "react";
-import { useMutation, useResource } from "./api";
+import { useEffect, useRef, useState } from "react";
+import { useListingRequest } from "./listing-request";
+import type { CommandResult, ApplicationTerms } from "./listing-types";
+import { ApiError, useMutation, useResource } from "./api";
 import {
   money,
   type Account,
@@ -31,10 +34,50 @@ export function TaskDetail({
     applications = useResource<Application[]>(`tasks/${id}/applications`),
     teams = useResource<Team[]>(account.can_apply ? "teams" : null),
     saved = useResource<{ id: string; saved: boolean }>(`saved/tasks/${id}`);
-  const mutation = useMutation(account.id),
+  const mutation = useListingRequest<
+      CommandResult<{ id: string }, ApplicationTerms>
+    >(`${account.id}:task:${id}:apply`),
     save = useMutation(account.id),
     [proposal, setProposal] = useState(""),
     [teamId, setTeamId] = useState("");
+  const proposalStorage = `campus:application-draft:${account.id}:${id}`;
+  const [draftReady, setDraftReady] = useState(false);
+  useEffect(() => {
+    try {
+      const d = JSON.parse(localStorage.getItem(proposalStorage) || "null");
+      if (d) {
+        setProposal(d.proposal || "");
+        setTeamId(d.teamId || "");
+      }
+    } catch {}
+    setDraftReady(true);
+  }, [proposalStorage]);
+  useEffect(() => {
+    if (draftReady)
+      try {
+        localStorage.setItem(
+          proposalStorage,
+          JSON.stringify({ proposal, teamId }),
+        );
+      } catch {}
+  }, [proposal, teamId, draftReady, proposalStorage]);
+  async function submitApplication() {
+    const r = await mutation.send(`tasks/${id}/applications`, {
+      proposal,
+      teamId: teamId || null,
+      expectedRevision: task.data?.revision,
+      expectedTermsVersion: task.data?.terms_version,
+    });
+    if (r) {
+      try {
+        localStorage.removeItem(proposalStorage);
+      } catch {}
+      applications.reload();
+      router.push(
+        historyDetailUrl(query, "workspace", r.receipt.id, "application"),
+      );
+    }
+  }
   const t = task.data,
     isSaved = saved.data?.saved,
     alreadyApplied = applications.data?.find(
@@ -110,7 +153,9 @@ export function TaskDetail({
               Chat about your application
             </Link>
           </>
-        ) : t.status === "open" && account.can_apply ? (
+        ) : t.status === "open" &&
+          t.visibility === "published" &&
+          account.can_apply ? (
           <>
             <h2>Interested in this bounty?</h2>
             <button
@@ -133,6 +178,21 @@ export function TaskDetail({
         )}
       </section>
       <Feedback {...save} />
+      {mutation.pending && (
+        <div className="cb-alert">
+          <p>
+            Your previous application may have completed. The exact proposal,
+            listing version and request key are preserved.
+          </p>
+          <button
+            className="cb-button"
+            disabled={mutation.busy}
+            onClick={() => void submitApplication()}
+          >
+            Recover application request
+          </button>
+        </div>
+      )}
       {saved.error && <ResourceState {...saved} />}
       {t.status !== "open" && (
         <section className="cb-panel" aria-label="Recruitment and fulfillment">
@@ -167,6 +227,12 @@ export function TaskDetail({
           )}
         </section>
       )}
+      <ListingManagement
+        listing={t}
+        kind="task"
+        account={account}
+        reload={task.reload}
+      />
       <div className="cb-detail-grid">
         <section>
           <div className="cb-panel">
@@ -234,7 +300,9 @@ export function TaskDetail({
                 ? "Your bounty"
                 : "Make your case"}
           </h2>
-          {t.status !== "open" ? (
+          {t.visibility === "paused" ? (
+            "This bounty is paused. Existing applications and agreements continue."
+          ) : t.status !== "open" ? (
             <p>
               Recruitment is closed. Review existing applications and use the
               linked agreement to track signed work.
@@ -272,22 +340,12 @@ export function TaskDetail({
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
-                const r = await mutation.run<{ id: string }>(
-                  `tasks/${id}/applications`,
-                  { proposal, teamId: teamId || null },
-                  "Application sent. Opening your private discussion.",
-                );
-                if (r) {
-                  applications.reload();
-                  setProposal("");
-                  router.push(
-                    historyDetailUrl(query, "workspace", r.id, "application"),
-                  );
-                }
+                await submitApplication();
               }}
             >
               <Field label="Apply as">
                 <select
+                  disabled={mutation.busy || !!mutation.pending}
                   value={teamId}
                   onChange={(e) => setTeamId(e.target.value)}
                 >
@@ -318,6 +376,7 @@ export function TaskDetail({
               >
                 <textarea
                   ref={proposalInput}
+                  disabled={mutation.busy || !!mutation.pending}
                   required
                   maxLength={10000}
                   rows={6}
@@ -325,8 +384,36 @@ export function TaskDetail({
                   onChange={(e) => setProposal(e.target.value)}
                 />
               </Field>
-              <Feedback {...mutation} />
-              <PendingButton busy={mutation.busy} disabled={!applications.data}>
+              <Feedback error={mutation.error} />
+              {mutation.error instanceof ApiError &&
+                mutation.error.status === 409 && (
+                  <button
+                    type="button"
+                    className="cb-button"
+                    onClick={() => {
+                      mutation.clear();
+                      task.reload();
+                      applications.reload();
+                    }}
+                  >
+                    Reload and review current terms; keep proposal
+                  </button>
+                )}
+              <p>
+                Sending confirms your review of listing version{" "}
+                {t.terms_version}. Team members must each review this version.
+              </p>
+              <PendingButton
+                busy={mutation.busy}
+                disabled={
+                  !applications.data ||
+                  !!mutation.pending ||
+                  !mutation.ready ||
+                  (mutation.error instanceof ApiError &&
+                    mutation.error.status === 409) ||
+                  task.loading
+                }
+              >
                 Send application
               </PendingButton>
               <Link className="cb-text-button" href="/?view=teams">

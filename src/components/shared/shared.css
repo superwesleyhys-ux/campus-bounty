@@ -1242,3 +1242,28 @@
 .cb-application-detail .cb-button {
   white-space: normal;
 }
+
+.cb-listing-terms > div {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--cb-border);
+}
+.cb-listing-terms dt {
+  font-weight: 700;
+}
+.cb-listing-terms dd {
+  margin: 0.5rem 0 0;
+  overflow-wrap: anywhere;
+}
+.cb-listing-changes section {
+  border-bottom: 1px solid var(--cb-border);
+  padding: 1rem 0;
+}
+.cb-listing-changes p {
+  overflow-wrap: anywhere;
+}
+.cb-compose fieldset:disabled {
+  opacity: 0.75;
+}
+.cb-compose .cb-button {
+  min-height: 44px;
+}

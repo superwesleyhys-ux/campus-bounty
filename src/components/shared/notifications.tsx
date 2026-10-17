@@ -169,6 +169,12 @@ export function Notifications({ accountId }: { accountId: string }) {
                 </p>
               )}
               <p>{item.description}</p>
+              {item.listingContext && (
+                <p>
+                  Listing version {item.listingContext.termsVersion} · revision{" "}
+                  {item.listingContext.revision}
+                </p>
+              )}
               {item.targetAvailable && item.target && item.messageContext && (
                 <div className="cb-notification-message">
                   <strong>

@@ -1,4 +1,5 @@
 "use client";
+import { ListingManagement } from "./listing-management";
 import { useEffect, useState } from "react";
 import { ApiError, useMutation, useResource } from "./api";
 import { money, type Account, type Product, type Quote } from "./types";
@@ -26,7 +27,9 @@ export function ProductDetail({
     return () => clearInterval(timer);
   }, []);
   if (!p) return <ResourceState {...resource} />;
-  const method = delivery || p.delivery_methods[0],
+  const method = p.delivery_methods.includes(delivery)
+      ? delivery
+      : p.delivery_methods[0],
     expired = !!quote && new Date(quote.expires_at).getTime() <= now;
   const unknown =
     mutation.error instanceof ApiError &&
@@ -43,6 +46,12 @@ export function ProductDetail({
           <strong>{money(p.price_cents)}</strong>
         </div>
       </div>
+      <ListingManagement
+        listing={p}
+        kind="product"
+        account={account}
+        reload={resource.reload}
+      />
       <div className="cb-detail-grid">
         <section className="cb-panel">
           <h2>About this item</h2>
@@ -62,10 +71,31 @@ export function ProductDetail({
         <aside className="cb-panel">
           <h2>{quote ? "Review your reservation" : "Choose your options"}</h2>
           <Feedback {...mutation} />
+          {mutation.error instanceof ApiError &&
+            ["stale_revision", "stale_quote", "listing_unavailable"].includes(
+              mutation.error.code,
+            ) && (
+              <button
+                className="cb-button"
+                onClick={() => {
+                  setQuote(null);
+                  setDelivery("");
+                  mutation.clear();
+                  resource.reload();
+                }}
+              >
+                Review latest listing and request a new quote
+              </button>
+            )}
           {p.seller_id === account.id ? (
             <p>
               This is your listing. Purchases from your own account are
               disabled.
+            </p>
+          ) : p.visibility === "paused" && !unknown ? (
+            <p>
+              This listing is paused. New purchases are unavailable. Your
+              existing orders remain in Workspace.
             </p>
           ) : !quote ? (
             <form
@@ -73,7 +103,12 @@ export function ProductDetail({
                 e.preventDefault();
                 const result = await mutation.run<Quote>(
                   `products/${id}/quotes`,
-                  { quantity, deliveryMethod: method },
+                  {
+                    quantity,
+                    deliveryMethod: method,
+                    expectedRevision: p.revision,
+                    expectedTermsVersion: p.terms_version,
+                  },
                   "",
                 );
                 if (result) setQuote(result);

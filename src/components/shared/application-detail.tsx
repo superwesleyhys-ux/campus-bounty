@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { historyDetailUrl } from "./history-pagination";
 import { useCallback, useRef, useState } from "react";
+import { ApplicationTermsReview } from "./application-terms-review";
 import { Conversation } from "./conversation";
 import type { ApplicationConversationContext } from "./conversation-types";
 import { useResource } from "./api";
@@ -25,7 +26,8 @@ export function ApplicationDetail({
   id: string;
   account: Account;
 }) {
-  const query = useSearchParams();
+  const query = useSearchParams(),
+    router = useRouter();
   const discussion = useRef<HTMLDivElement>(null);
   const restoreRefreshFocus = useRef(false);
   const [context, setContext] = useState<ApplicationConversationContext | null>(
@@ -84,18 +86,21 @@ export function ApplicationDetail({
               <time className="cb-fine" dateTime={application.created_at}>
                 {new Date(application.created_at).toLocaleString("en-US")}
               </time>
-              <h3>Participant consent</h3>
-              <ul>
-                {application.members.map((member) => (
-                  <li key={member.user_id}>
-                    {member.user_id === account.id
-                      ? "You"
-                      : member.display_name || "Team member"}
-                    {" — "}
-                    {member.confirmed ? "Agreed" : "Waiting for consent"}
-                  </li>
-                ))}
-              </ul>
+              <ApplicationTermsReview
+                id={id}
+                account={account}
+                reload={resource.reload}
+                openAgreement={(agreement) =>
+                  router.push(
+                    historyDetailUrl(
+                      query,
+                      "workspace",
+                      agreement,
+                      "agreement",
+                    ),
+                  )
+                }
+              />
               {campusVerified && application.task ? (
                 <Link
                   className="cb-button"

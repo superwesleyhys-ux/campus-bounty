@@ -1,0 +1,16 @@
+[
+  {
+    "path": "tests/fixtures/pre-listing-lifecycle/tasks.mjs",
+    "sourceSnapshot": ".superpowers/sdd/interaction-round12-plan/before/task2/backend/modules/tasks.mjs",
+    "sourceSha256": "cdc533f6bfcb0486d2dca30d1358bc1c4b9055fc04afa27320aea892c410139b",
+    "fixtureSha256": "7eec9b15b1e82a0fb5fb86fea32b04f55b764157acb3582b6fd8cdecff959fbf",
+    "change": "Relative imports only; service bodies are frozen pre-Task2 source."
+  },
+  {
+    "path": "tests/fixtures/pre-listing-lifecycle/goods.mjs",
+    "sourceSnapshot": ".superpowers/sdd/interaction-round12-plan/before/task2/backend/modules/goods.mjs",
+    "sourceSha256": "1c081511e1db8d960d4b673af965fa5c6695866eb04628e60653d4beb79386f4",
+    "fixtureSha256": "da04181364216392f3e6a8e7c8fe563a1b477f06a257656cf184ce9c91f5c25d",
+    "change": "Relative imports only; service bodies are frozen pre-Task2 source."
+  }
+]

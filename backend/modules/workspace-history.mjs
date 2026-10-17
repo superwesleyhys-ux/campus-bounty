@@ -86,12 +86,12 @@ const queries = {
     where: `$1::uuid IS NOT NULL`,
   },
   posted: {
-    select: `a.id,a.owner_id,a.title,a.category,a.description,a.reward_cents,to_char(a.due_date,'YYYY-MM-DD') AS due_date,a.status,a.revision,a.created_at`,
+    select: `a.id,a.owner_id,a.title,a.category,a.description,a.reward_cents,to_char(a.due_date,'YYYY-MM-DD') AS due_date,a.status,a.visibility,a.terms_version,a.revision,a.created_at`,
     from: `campus.tasks a`,
     where: `a.owner_id=$1`,
   },
   selling: {
-    select: `a.id,a.seller_id,a.title,a.description,a.price_cents,a.stock,a.delivery_methods,a.shipping_cents,a.revision,a.created_at`,
+    select: `a.id,a.seller_id,a.title,a.description,a.price_cents,a.stock,a.delivery_methods,a.shipping_cents,a.visibility,a.terms_version,a.stock_revision,a.revision,a.created_at`,
     from: `campus.products a`,
     where: `a.seller_id=$1`,
   },

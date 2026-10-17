@@ -5,6 +5,11 @@ export const POST = api(
   { method: "POST" },
   async ({ runtime, actor, body, params, query, request, token, ip }) => {
     const key = request.headers.get("idempotency-key");
-    return runtime.market.consentApplication(actor, params.id, body, key);
+    return runtime.market.acknowledgeApplicationTerms(
+      actor,
+      params.id,
+      body,
+      key,
+    );
   },
 );

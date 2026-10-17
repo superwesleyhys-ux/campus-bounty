@@ -12,6 +12,26 @@ import { workSql } from "./fulfillment.mjs";
 
 // Versioned, fixed English copy never interpolates private business content.
 const templatesV1 = {
+  "listing.terms_changed": [
+    "Listing terms updated",
+    "Review the new listing version. Existing agreements and orders retain their terms.",
+  ],
+  "listing.paused": [
+    "Listing paused",
+    "New applications and purchases are paused. Existing agreements and orders continue.",
+  ],
+  "listing.republished": [
+    "Listing republished",
+    "The listing is visible again. A fresh invitation is required to continue an application.",
+  ],
+  "application.terms_acknowledged": [
+    "Current terms reviewed",
+    "A participant explicitly confirmed this listing version.",
+  ],
+  "application.version_invited": [
+    "Version-specific invitation",
+    "The publisher issued an invitation for the reviewed listing version.",
+  ],
   "application.received": [
     "New application",
     "A new application is ready to review.",
@@ -165,6 +185,7 @@ export function notificationQuery(input) {
   return { limit: Number(p.limit), unread: p.unread === "true", cursor };
 }
 const columns = `id,kind,template_version,
+ (SELECT jsonb_build_object('kind',l.listing_kind,'id',l.listing_id,'termsVersion',l.terms_version,'revision',l.listing_revision) FROM campus.listing_notification_context l WHERE l.notification_id=notifications.id) AS listing_context,
  to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
  to_char(read_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS read_at,
  campus.notification_target(target_type,target_id) AS target,
@@ -201,6 +222,7 @@ function present(row) {
     target: row.target ? target : null,
     targetAvailable: row.target !== null,
     // Missing legacy context is unavailable; never infer a current version.
+    listingContext: row.target ? (row.listing_context ?? null) : null,
     workContext: row.target ? (row.work_context ?? null) : null,
     // Exact event + target + current message/participant visibility, never a snapshot.
     messageContext:
