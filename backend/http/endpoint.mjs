@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { Problem, requireThat } from "../errors.mjs";
 export function cookieValue(request, name) {
   const entry = request.headers
@@ -112,6 +112,11 @@ export function endpoint(getRuntime, options, run) {
         result instanceof Response
           ? result
           : Response.json(result, { status: options.status || 200 });
+      if (write && user && !(result instanceof Response)) {
+        // Binds a successful response to the actual authenticated command. Clients
+        // still validate its typed business receipt separately from current state.
+        response.headers.set("X-Campus-Mutation-Receipt", createHash("sha256").update(JSON.stringify([user.id,new URL(request.url).pathname,request.headers.get("idempotency-key"),body])).digest("hex"));
+      }
     } catch (error) {
       const conflict = [
         "23505",

@@ -210,6 +210,10 @@ export function createStripePayments({
         transferCapability: balance?.stripe_transfers?.status ?? "unknown",
         payoutCapability: balance?.payouts?.status ?? "unknown",
         observedAt: new Date().toISOString(),
+        requirements: {
+          pendingCount: Math.min(a.requirements?.entries?.length ?? 0, 10000),
+          status: !a.requirements ? "unknown" : !a.requirements.entries?.length ? "none" : a.requirements.entries.some(r => r.minimum_deadline?.status === "past_due") ? "past_due" : a.requirements.entries.some(r => r.awaiting_action_from === "user") ? "currently_due" : "pending_verification",
+        },
       };
     },
     createRecipient: (op) =>

@@ -153,6 +153,10 @@ export const operationReadSchema = z.strictObject({
   bankPayout: z.literal("unknown"),
 });
 export const accountReadSchema = z.strictObject({
+  requirements: z.strictObject({pendingCount:z.number().int().nonnegative(),status:z.enum(["unknown","none","currently_due","past_due","pending_verification"])}).optional(),
+  operation: operationReadSchema.nullable().optional(),
+  configurationBlocker:z.string().nullable().optional(),
+  dashboardAvailable:z.boolean().optional(),
   revision: z.number().int().nonnegative(),
   transferCapability: z.string(),
   payoutCapability: z.string(),

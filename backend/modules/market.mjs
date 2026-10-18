@@ -1,3 +1,4 @@
+import { paymentPreparationModule } from "./payment-preparation.mjs";
 import {amendmentMoneyModule} from "./amendment-money.mjs";
 import { paymentModule } from "./payments.mjs";
 import { paymentAllocationModule } from "./payment-allocations.mjs";
@@ -25,6 +26,7 @@ export function createMarket(store, options = {}) {
     ...agreementAmendmentModule(store),
     ...paymentAllocationModule(store),
     ...paymentModule(store, options),
+    ...paymentPreparationModule(store, options),
     ...amendmentMoneyModule(store, options),
   };
   const capabilities = market.capabilities;
