@@ -1,4 +1,5 @@
 "use client";
+import { ParticipantPayment } from "./participant-payment";
 import { useResource } from "./api";
 import { Conversation } from "./conversation";
 import { money, type Account, type Agreement } from "./types";
@@ -46,18 +47,19 @@ export function AgreementDetail({
           <strong>Waiting for funding</strong>
           <p>
             The agreement is awaiting initial funding. Work cannot be submitted
-            until funding is confirmed. Payments are not enabled in this
-            preview, so you do not need to take any payment action here.
+            until funding is confirmed. Review the payment panel for the current
+            quote, personal confirmations and next required action.
           </p>
         </div>
       )}
       {agreement.state === "completed" && (
         <p className="cb-alert cb-success" role="status">
           Agreement completed: every milestone has been accepted. This records
-          fulfillment only; no funds were transferred or settled here.
+          fulfillment. Verified transfers and any holds are shown separately below.
         </p>
       )}
       <ReleaseDisclosure policy={agreement.transaction?.releasePolicy} />
+      <ParticipantPayment key={`${account.id}:${id}`} account={account.id} id={id} kind="agreement" onChanged={resource.reload} />
       {agreement.transaction?.allocations && (
         <details className="cb-panel">
           <summary>Signed recipient amounts</summary>

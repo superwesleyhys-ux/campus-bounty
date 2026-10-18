@@ -32,7 +32,7 @@ export function usePaymentRequest(account:string,resource:string) {
         const saved=JSON.parse(localStorage.getItem(storage)||"null");
         if(saved){if(saved.account!==account||saved.resource!==resource)throw Error("Recovery identity mismatch.");p=saved;wasPending=true;}
         else {if(!path)return;p={account,resource,path,body:structuredClone(body),key:crypto.randomUUID(),expected:structuredClone(expected),required};}
-        if(turn!==generation.current)return;
+        if(turn!==generation.current||!p)return;
         localStorage.setItem(storage,JSON.stringify(p));setPending(p);
         stage="mutation";
         const response=await fetch(`/api/v1/${p.path}`,{method:"POST",credentials:"same-origin",cache:"no-store",signal:AbortSignal.any([controller.current.signal,AbortSignal.timeout(30000)]),headers:{"Content-Type":"application/json","Idempotency-Key":p.key},body:JSON.stringify(p.body)});

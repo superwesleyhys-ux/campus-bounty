@@ -1,4 +1,5 @@
 "use client";
+import { ParticipantPayment } from "./participant-payment";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { historyDetailUrl } from "./history-pagination";
@@ -40,6 +41,7 @@ export function OrderDetail({ id, account }: { id: string; account: Account }) {
         <strong className="cb-price">{money(order.total_cents)}</strong>
       </div>
       <ListingEventVersion kind="product" id={order.product_id} />
+      <ParticipantPayment key={`${account.id}:${id}`} account={account.id} id={id} kind="order" onChanged={resource.reload} />
       <div className="cb-detail-grid cb-conversation-detail">
         <section>
           <div className="cb-panel">
@@ -74,9 +76,8 @@ export function OrderDetail({ id, account }: { id: string; account: Account }) {
                 <p>
                   Reserved until{" "}
                   {new Date(order.reserved_until).toLocaleString("en-US")}.
-                  Payments are not enabled, so this order cannot proceed to
-                  fulfillment. Unpaid reservations expire and return inventory
-                  automatically.
+                  Payment status is shown above. Cancellation or expiry may retain
+                  inventory while a payment outcome is unknown.
                 </p>
                 <button className="cb-button" onClick={resource.reload}>
                   Refresh order status
@@ -86,7 +87,7 @@ export function OrderDetail({ id, account }: { id: string; account: Account }) {
                     headingLevel={3}
                     cancelLabel="Keep reservation"
                     label="Cancel reservation"
-                    description="This unpaid order will close and the reserved items will become available again. No payment or refund is involved. Your order history will be kept."
+                    description="Request cancellation. Payment attempts must be resolved before inventory can return; already received or late money may remain held for review."
                     confirmLabel="Confirm cancellation"
                     busy={mutation.busy}
                     uncertain={uncertain}
@@ -99,7 +100,7 @@ export function OrderDetail({ id, account }: { id: string; account: Account }) {
                       const result = await mutation.run<Order>(
                         `orders/${id}/cancellation`,
                         {},
-                        "Reservation closed. No payment was taken.",
+                        "Cancellation requested. Read the current payment and reservation status.",
                       );
                       if (result) {
                         heading.current?.focus();
@@ -113,13 +114,13 @@ export function OrderDetail({ id, account }: { id: string; account: Account }) {
             )}
             {order.state === "expired" && (
               <p className="cb-alert">
-                This unpaid reservation expired. Inventory has been released.
+                This reservation expired. Check current funding and listing availability; late received money may remain held.
               </p>
             )}
             {order.state === "cancelled" && (
               <p className="cb-alert">
-                This unpaid reservation was cancelled. The items are available
-                again and no payment was taken.
+                This reservation was cancelled. Check current payment status for
+                any received, late or held funds.
               </p>
             )}
             {["cancelled", "expired"].includes(order.state) && (

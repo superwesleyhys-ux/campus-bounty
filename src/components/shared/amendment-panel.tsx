@@ -1,4 +1,5 @@
 "use client";
+import { AmendmentPayment } from "./payment-amendment";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ApiError, request } from "./api";
@@ -222,6 +223,7 @@ export function AmendmentPanel({
       {loading && <p role="status">Loading exact proposal revision…</p>}
       {proposal && !editor && (
         <>
+          <AmendmentPayment key={`${account.id}:${proposal.id}`} account={account.id} proposal={proposal} publisher={agreement.owner_id===account.id} onChanged={()=>{setRefresh(n=>n+1);reload();}} />
           <AmendmentDetail
             key={`${proposal.id}:${proposal.proposalRevision}:${refresh}`}
             proposal={proposal}

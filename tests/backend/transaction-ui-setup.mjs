@@ -4,7 +4,7 @@ import {digest} from '../../backend/payments/amounts.mjs';
 import {createStripePayments} from '../../backend/adapters/stripe-payments.mjs';
 import {createPaymentWorker} from '../../backend/adapters/payment-worker.mjs';
 export async function configure(f) {
- const env={id:key(),platformAccountId:'acct_task2c_synthetic',mode:'sandbox'};
+ const env={id:key(),platformAccountId:'acct_task2csynthetic',mode:'sandbox'};
  await f.owner.query("INSERT INTO campus.payment_environments VALUES($1,'stripe','sandbox',$2,'Task2C synthetic only','2026-09-30.endive','23.0.0','http://127.0.0.1:3024',true)",[env.id,env.platformAccountId]);
  await legacyInlineProfile(f,env.id);
  const body={kind:'synthetic_usd_card_minimum_v1',presentmentCurrency:'USD',settlementCurrency:'USD',paymentMethodTypes:['card'],minimumChargeCents:50,source:'https://docs.stripe.com/currencies#minimum-and-maximum-charge-amounts',accountEvidenceDigest:digest({synthetic:env.id}),accountEvidenceRef:'Synthetic: local UI engineering only'};

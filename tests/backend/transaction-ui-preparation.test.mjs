@@ -21,6 +21,6 @@ test('fresh service application, exact personal consent, preparation, funding qu
   const op=await f.market.onboardPaymentAccount(s.C,{expectedAccountRevision:0},key());await x.worker.dispatch();await x.worker.refreshRecipients();
   const acct=await f.market.paymentAccount(s.C);assert.equal(acct.transferCapability,'active');assert.equal(acct.operation.operationId,op.receipt.operationId);assert.equal(acct.requirements.status,'unknown');
   const stranger=await f.user('Stranger');await assert.rejects(f.market.preparePaymentTerms(stranger,'agreement',s.g.id,{},key()),{code:'not_found'});
-  await assert.rejects(f.market.preparePaymentTerms(s.P,'agreement',s.g.id,{approved:true},key()),{code:'validation_error'});
+  await assert.rejects(f.market.preparePaymentTerms(s.P,'agreement',s.g.id,{approved:true},key()),{code:'invalid_input'});
  }finally{await f.close();}
 });

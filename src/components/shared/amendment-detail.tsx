@@ -51,8 +51,8 @@ export function AmendmentDetail({
         <p className="cb-alert" role="status">
           All parties agreed to this change, but it is waiting for funds
           reconciliation and is not effective. Current effective terms still
-          govern work. Payment collection, coverage and refunds are unavailable;
-          no money has been transferred.
+          govern work. Review the separate financial plan below for actual
+          shortfall, personal consent, payment and activation status.
         </p>
       )}
       <AmendmentComparison

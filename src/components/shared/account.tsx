@@ -1,4 +1,5 @@
 "use client";
+import { PaymentAccountPanel } from "./payment-account";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "./api";
@@ -186,6 +187,7 @@ export function AccountPage({
             onAccountChanged={onAccountChanged}
           />
           <Eligibility account={account} onAccountChanged={onAccountChanged} />
+          <PaymentAccountPanel key={account.id} account={account.id} />
         </div>
         <aside
           className="cb-panel cb-account-summary"

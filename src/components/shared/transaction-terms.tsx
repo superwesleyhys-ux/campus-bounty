@@ -1,4 +1,6 @@
 "use client";
+import { usePaymentRequest } from "./payment-request";
+import { PaymentRecovery } from "./payment-presentation";
 import { useEffect, useState } from "react";
 import { ApiError, useResource } from "./api";
 import { useListingRequest } from "./listing-request";
@@ -159,6 +161,7 @@ export function TransactionAllocation({
   );
 }
 function AllocationEditor({ id, account }: { id: string; account: Account }) {
+  const preparation=usePaymentRequest(account.id,`application-preparation:${id}`);
   const [beforeRevision, setBeforeRevision] = useState<number | null>(null);
   const resource = useResource<Allocation>(
       `applications/${id}/allocations${beforeRevision ? `?beforeRevision=${beforeRevision}` : ""}`,
@@ -284,6 +287,7 @@ function AllocationEditor({ id, account }: { id: string; account: Account }) {
     <section className="cb-panel" aria-label="Transaction allocation">
       <h3>Recipient allocation and financial consent</h3>
       <ReleaseDisclosure policy={d.releasePolicy} />
+      {active && <><button className="cb-button" disabled={preparation.blocked || frozen} onClick={async()=>{if(await preparation.send(`applications/${id}/payment-preparation`,{},{resourceId:id},["policyVersionId","policyDigest"]))resource.reload();}}>Prepare approved current financial terms</button><PaymentRecovery command={preparation} refresh={resource.reload}/></>}
       <p>
         Listing version {d.termsVersion} · allocation revision{" "}
         {r?.revision ?? "not proposed"}. Listing acknowledgement is separate
