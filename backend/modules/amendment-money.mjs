@@ -40,6 +40,7 @@ export function amendmentMoneyModule(store,{paymentEnabled=false}={}){
   return store.as(actor,async c=>{await account(c,actor);await member(c,actor,{write:true});
    // Acquire the ordinary advisory/aggregate hierarchy before read assessment takes row locks.
    await moneySql(c,'SELECT campus.authorize_agreement_amendment($1)',[gid]);await read(c,gid,aid);
+   if(!(await c.query('SELECT campus.agreement_amendment_capabilities() value')).rows[0].value.agreementAmendments)throw new Problem(503,'agreement_amendments_unavailable','Amendment actions are unavailable.');
    const r=await idempotent(c,actor,`amendment.money.${kind}:${gid}:${aid}:${revision??''}`,key,d,async()=>{
     const args=kind==='propose'?[gid,aid,JSON.stringify(d)]:[gid,aid,revision,JSON.stringify(d)];
     return (await moneySql(c,`SELECT campus.amend_money_${kind}(${args.map((_,i)=>'$'+(i+1)).join(',')}) result`,args)).rows[0].result;

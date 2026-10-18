@@ -107,7 +107,7 @@ $$;
 CREATE FUNCTION campus.amend_plan_exact(gid uuid,aid uuid,rev integer,request jsonb) RETURNS campus.amendment_financial_plans LANGUAGE plpgsql SET search_path=pg_catalog,campus,pg_temp AS $$
 DECLARE p campus.amendment_financial_plans;r campus.agreement_amendment_revisions;
 BEGIN
- PERFORM campus.lock_agreement_amendment(gid);r:=campus.exact_amendment_revision(gid,aid,request);
+ PERFORM campus.lock_agreement_amendment(gid);PERFORM campus.require_amendment_enabled();r:=campus.exact_amendment_revision(gid,aid,request);
  SELECT * INTO p FROM campus.amendment_financial_plans WHERE agreement_id=gid AND amendment_id=aid AND revision=rev;
  IF p.id IS NULL THEN RAISE EXCEPTION 'not_found' USING ERRCODE='P0001';END IF;
  IF request->>'digest' IS DISTINCT FROM p.digest OR p.proposal_revision<>r.proposal_revision THEN RAISE EXCEPTION 'financial_plan_changed' USING ERRCODE='P0001';END IF;RETURN p;
@@ -220,6 +220,7 @@ ALTER FUNCTION campus.money_attempt(uuid,jsonb) RENAME TO money_attempt_before_a
 REVOKE ALL ON FUNCTION campus.money_attempt_before_amendment(uuid,jsonb) FROM PUBLIC,campus_app,campus_auth,campus_worker;
 CREATE FUNCTION campus.money_attempt(oid uuid,request jsonb) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
 BEGIN PERFORM campus.money_lock_aggregate(oid);
+ IF EXISTS(SELECT 1 FROM campus.amendment_funding_origins WHERE obligation_id=oid) THEN PERFORM campus.require_amendment_enabled();END IF;
  IF EXISTS(SELECT 1 FROM campus.amendment_funding_origins WHERE obligation_id=oid) AND NOT campus.amend_collectible(oid) THEN RAISE EXCEPTION 'financial_plan_stale' USING ERRCODE='P0001';END IF;
  RETURN campus.money_attempt_before_amendment(oid,request);END $$;
 GRANT EXECUTE ON FUNCTION campus.money_attempt(uuid,jsonb) TO campus_app;
@@ -510,7 +511,7 @@ CREATE TRIGGER money_candidate_frozen BEFORE UPDATE ON campus.agreement_amendmen
 ALTER FUNCTION campus.end_agreement_amendment(uuid,uuid,jsonb,text) RENAME TO end_agreement_amendment_before_money;
 CREATE FUNCTION campus.end_agreement_amendment(gid uuid,aid uuid,request jsonb,operation text) RETURNS jsonb LANGUAGE plpgsql SET search_path=pg_catalog,campus,pg_temp AS $$
 DECLARE p campus.amendment_financial_plans;r campus.agreement_amendment_revisions;
-BEGIN PERFORM campus.lock_agreement_amendment(gid);r:=campus.exact_amendment_revision(gid,aid,request);
+BEGIN PERFORM campus.lock_agreement_amendment(gid);PERFORM campus.require_amendment_enabled();r:=campus.exact_amendment_revision(gid,aid,request);
  IF operation='withdraw' AND campus.actor()<>(SELECT proposer_id FROM campus.agreement_amendments WHERE id=aid) THEN RAISE EXCEPTION 'not_proposer' USING ERRCODE='P0001';END IF;
  FOR p IN SELECT pp.* FROM campus.amendment_financial_plans pp JOIN campus.amendment_funding_origins ao ON ao.plan_id=pp.id WHERE pp.amendment_id=aid LOOP
   INSERT INTO campus.amendment_money_cancellations VALUES(p.id,campus.actor(),request->>'reason',campus.money_now()) ON CONFLICT DO NOTHING;
@@ -555,6 +556,7 @@ BEGIN
    IF EXISTS(SELECT 1 FROM campus.payment_quotes WHERE obligation_id=o.id AND expires_at>campus.money_now()) AND NOT EXISTS(SELECT 1 FROM campus.payment_attempts WHERE obligation_id=o.id AND status NOT IN('failed','canceled')) THEN actions:=actions||'"request_payment_attempt"'::jsonb;END IF;
   END IF;
   IF NOT effective THEN actions:=actions||'"request_cancellation"'::jsonb;END IF;
+  IF NOT (SELECT mutations_enabled AND strict_binding FROM campus.agreement_amendment_settings WHERE singleton) THEN reasons:=reasons||'"agreement_amendments_unavailable"'::jsonb;actions:='["refresh"]';END IF;
   plans:=plans||jsonb_build_array(jsonb_build_object('planId',p.id,'revision',p.revision,'digest',p.digest,'feePlanDigest',(SELECT digest FROM campus.payment_fee_plans WHERE id=p.id),'feePlan',(SELECT body FROM campus.payment_fee_plans WHERE id=p.id),'plan',p.body,'confirmedParticipantIds',confirmed,'obligationId',o.id,'collection',campus.amend_collection_read(o.id),'funded',funded,'effective',effective,'blockedReasons',reasons,'allowedActions',actions));
  END LOOP;
  RETURN jsonb_build_object('agreementId',gid,'amendmentId',aid,'plans',plans,'effectiveMembership',campus.amend_effective_membership(gid),'financialPolicyLimits',jsonb_build_array('decrease_reallocation_retirement_require_compensation_policy','supported_usd_card_minimum'));
@@ -589,6 +591,7 @@ DECLARE p campus.amendment_financial_plans;assessment jsonb;
 BEGIN
  SELECT pp.* INTO p FROM campus.amendment_financial_plans pp JOIN campus.amendment_funding_origins ao ON ao.plan_id=pp.id WHERE ao.obligation_id=op.obligation_id;
  IF op.kind='checkout' AND p.id IS NOT NULL AND op.first_dispatched_at IS NULL THEN
+  IF NOT (SELECT mutations_enabled AND strict_binding FROM campus.agreement_amendment_settings WHERE singleton) THEN RETURN false;END IF;
   IF NOT campus.amend_collectible(op.obligation_id) THEN RETURN false;END IF;
   assessment:=campus.amend_assess(p,false);
   IF assessment->>'status'<>'ready' AND assessment->>'reason' IS DISTINCT FROM 'payment_or_fee_pending' THEN RETURN false;END IF;

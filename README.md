@@ -8,6 +8,12 @@
 
 This repository now includes in-progress transaction and agreement-change work. Read [current development status](docs/github-development-status.md) before using it. A sync commit is not a release or deployment; real login, payments and final acceptance remain incomplete. Historical verification sections below refer only to their named increments.
 
+### Latest backend checkpoint — 2026-10-17 23:51 PDT
+
+The amendment-money increment is frozen for independent Astra High review. Final checks passed46/46, type checking and isolated build, all bound to one475-file source snapshot. This includes the amendment feature-gate correction, while preserving recovery of already-dispatched unknown payments and late incoming facts. The20 earlier migrations and110 prior evidence artifacts were preserved; disposable test databases were cleaned.
+
+This is synthetic provider/closure evidence, not real payment or full-product acceptance. Independent review is pending. Complete payment/recipient onboarding UI, ordinary transaction policy preparation, real email/login/provider integration and production deployment remain unfinished. The development-status document contains earlier checkpoint history; this dated note is the latest validation update. Source has not been deployed.
+
 ## 已接通的主要流程
 
 - 悬赏顶部 Apply、个人/团队申请、成员同意、邀请接受、退出及历史保留。
