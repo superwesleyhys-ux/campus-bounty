@@ -10,7 +10,7 @@ test('fresh service application, exact personal consent, preparation, funding qu
   const s=await agreement(f,{team:true});
   const p=await f.market.preparePaymentTerms(s.P,'agreement',s.g.id,{},key());
   const again=await f.market.preparePaymentTerms(s.P,'agreement',s.g.id,{},key());assert.equal(p.receipt.policyVersionId,again.receipt.policyVersionId);
-  const v=await f.market.participantPayment(s.P,'agreement',s.g.id);assert.equal(v.preparationBlocker,null);
+  const v=await f.market.participantPayment(s.P,'agreement',s.g.id);assert.equal(v.preparationBlocker,null);assert.equal(v.payerId,s.P);
   const fp=await f.market.proposePaymentFeePlan(s.P,'agreement',s.g.id,{policyVersionId:v.feePlan.context.policyId,policyDigest:v.feePlan.context.policyDigest,sourceDigest:v.feePlan.context.sourceDigest},key());
   assert.equal(fp.current.plan.estimatedFeeCents,100);assert.equal(fp.current.plan.maximumFeeCents,110);
   for(const actor of [s.P,...s.members])await f.market.confirmPaymentFeePlan(actor,fp.receipt.planId,{digest:fp.receipt.digest},key());
@@ -55,7 +55,7 @@ test('funded team settles exact separate members and current configuration fee s
   const extra=await pay(f,x,await quoteAgreement(f,await agreement(f)),300);
   await configuration(f,x,{feeEstimate:{...x.config.feeEstimate,fixedCents:120}});
   const prep=await f.market.preparePaymentTerms(extra.P,'fee_revision',extra.q.obligationId,{},key());
-  const before=await f.market.paymentFeeRevision(extra.P,extra.q.obligationId);
+  const canonical=await f.market.participantPayment(extra.P,'agreement',extra.g.id);assert.equal(canonical.payerId,extra.P);const before=await f.market.paymentFeeRevision(extra.P,extra.q.obligationId);
   const revision=await f.market.proposePaymentFeeRevision(extra.P,extra.q.obligationId,{policyVersionId:prep.receipt.policyVersionId,policyDigest:prep.receipt.policyDigest,evidenceDigest:before.evidenceDigest},key());
   for(const who of [extra.P,...extra.members])await f.market.confirmPaymentFeeRevision(who,revision.receipt.revisionId,{digest:revision.receipt.digest},key());
   const supplement=await f.market.startPaymentFeeSupplement(extra.P,revision.receipt.revisionId,{digest:revision.receipt.digest,acceptedAmountCents:revision.current.plan.supplementalAmountCents},key());

@@ -9,12 +9,14 @@ import {FeeRevisionPanel} from "./payment-fee-revision";
 export function ParticipantPayment({account,id,kind,onChanged}:{account:string;id:string;kind:"agreement"|"order";onChanged:()=>void}) {
  const base=`${kind==='agreement'?'agreements':'orders'}/${id}`;
  const resource=usePaymentRead<PaymentView>(account,`${base}/participant-payment`),command=usePaymentRequest(account,`${kind}:${id}`);
- const [notice,setNotice]=useState("");const heading=useRef<HTMLHeadingElement>(null);
+ const [notice,setNotice]=useState(""),[feesOpen,setFeesOpen]=useState(false);const heading=useRef<HTMLHeadingElement>(null),focusAfterRefresh=useRef(false);
  const d=resource.data,f=d?.funding,fp=d?.feePlan,q=d?.quote;
  const attempt=usePaymentRead<PaymentAttempt>(account,f?.activeAttempt?`payment-attempts/${f.activeAttempt.id}`:null);
  function refresh(){resource.reload();attempt.reload();onChanged();}
+ useEffect(()=>{if(resource.data&&focusAfterRefresh.current){focusAfterRefresh.current=false;heading.current?.focus();}},[resource.data]);
+ function refreshAfterAction(){focusAfterRefresh.current=true;refresh();}
  useEffect(()=>{const fn=()=>refresh();window.addEventListener('focus',fn);return ()=>window.removeEventListener('focus',fn);},[account,id]);
- async function act(path:string,body:Record<string,unknown>,expected:Record<string,unknown>={},required:string[]=[]){const r=await command.send(path,body,expected,required);if(r){setNotice("Request recorded. Current payment status is shown separately below.");refresh();heading.current?.focus();}return r;}
+ async function act(path:string,body:Record<string,unknown>,expected:Record<string,unknown>={},required:string[]=[]){const r=await command.send(path,body,expected,required);if(r){setNotice("Request recorded. Current payment status is shown separately below.");refreshAfterAction();}return r;}
  if(!d)return <section className="cb-panel" aria-label="Payments"><h2>Payment and recipient transfers</h2><ResourceState {...resource}/><PaymentRecovery command={command} refresh={refresh}/></section>;
  const disabled=command.blocked||!d.paymentEnabled;
  const collectionDisabled=disabled||!!d.configurationChangeBlocker;
@@ -33,7 +35,7 @@ export function ParticipantPayment({account,id,kind,onChanged}:{account:string;i
  {quoteAllowed&&d.quoteRequest&&<button className="cb-button" disabled={disabled} onClick={()=>void act(`${base}/payment-quotes`,d.quoteRequest!,{},['quoteId','quoteDigest','obligationId'])}>{q?'Review a current payment quote':'Get current payment quote'}</button>}
  {q&&<div className="cb-alert"><h3>Explicit payer payment</h3><p>Current quoted collection: <strong>{cents(q.amountCents)}</strong>. Quote expires {new Date(q.expiresAt).toLocaleString()}. Opening Checkout does not prove payment.</p>{new Date(q.expiresAt).getTime()<=Date.now()?<p>This quote expired. Request and review a current quote before paying.</p>:!f!.activeAttempt&&<ConsentButton identity={q.quoteDigest} disabled={collectionDisabled||!f!.allowedActions.includes('create_payment_attempt')} label={`Start payment of ${cents(q.amountCents)}`} onConfirm={()=>void act(`funding-obligations/${q.obligationId}/payment-attempts`,{quoteId:q.quoteId,quoteDigest:q.quoteDigest,expectedObligationRevision:q.obligationRevision,acceptedAmountCents:q.amountCents,currency:'USD'},{obligationId:q.obligationId,quoteId:q.quoteId,amountCents:q.amountCents,currency:'USD'},['attemptId','operationId'])}/>}</div>}
  {f!.activeAttempt&&<div role="status"><p>Current payment attempt: {reason(attempt.data?.status??f!.activeAttempt.status)}. If its result is unknown, retain this attempt and refresh.</p>{attempt.data?.hostedUrl&&<HostedAction account={account} path={`payment-attempts/${attempt.data.attemptId}`} label="Continue this payment in hosted Checkout"/>}</div>}
- {f!.obligationId&&<><FeeRevisionPanel payerId={fp?.context.payerId??null} paymentEnabled={d.paymentEnabled} account={account} obligationId={f!.obligationId} people={d.people} command={command} onChanged={refresh}/><PaymentCases view={d} account={account} base={base} command={command} onChanged={refresh}/></>}
+ {f!.obligationId&&<><FeeRevisionPanel open={feesOpen} setOpen={setFeesOpen} payerId={d.payerId} paymentEnabled={d.paymentEnabled} account={account} obligationId={f!.obligationId} people={d.people} command={command} onChanged={refreshAfterAction}/><PaymentCases view={d} account={account} base={base} command={command} onChanged={refreshAfterAction}/></>}
  <PaymentRecovery command={command} refresh={refresh}/>
  </section>;
 }
