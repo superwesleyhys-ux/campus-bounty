@@ -1,3 +1,4 @@
+import { agreementProjection } from "./agreement-amendments.mjs";
 import { z, parse, requireThat, uuid, empty, found } from "./common.mjs";
 import { account, member } from "../db/store.mjs";
 
@@ -137,6 +138,9 @@ export function workspaceHistoryModule(store) {
             [actor, cursor?.createdAt ?? null, cursor?.id ?? null, limit + 1],
           )
         ).rows;
+        if (scope === "agreements")
+          for (let i = 0; i < rows.length; i++)
+            rows[i] = await agreementProjection(c, rows[i]);
         const page = rows.slice(0, limit),
           last = page.at(-1);
         return {

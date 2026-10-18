@@ -1,3 +1,5 @@
+import { paymentConfig } from "./payments/config.mjs";
+import { createStripePayments } from "./adapters/stripe-payments.mjs";
 import { createHash } from "node:crypto";
 import { readConfig } from "./config.mjs";
 import { createStore } from "./db/store.mjs";
@@ -27,6 +29,21 @@ export async function createRuntime(env = process.env, { sharedStore } = {}) {
     store = sharedStore ?? createStore(config.urls);
   try {
     await store.verifyRoles();
+    const payments = paymentConfig(env);
+    if (payments.enabled) {
+      const binding = (
+        await store.worker.query(
+          "SELECT campus.money_environment_binding($1) AS result",
+          [payments.environment.id],
+        )
+      ).rows[0]?.result;
+      if (
+        !binding?.enabled ||
+        binding.platformAccountId !== payments.environment.platformAccountId ||
+        binding.mode !== payments.environment.mode
+      )
+        throw Error("Payment environment mismatch");
+    }
     if (config.production) {
       const count = (
         await store.auth.query(
@@ -39,8 +56,12 @@ export async function createRuntime(env = process.env, { sharedStore } = {}) {
     return {
       config,
       store,
+      paymentAdapter: payments.enabled ? createStripePayments(payments) : null,
       auth: createAuth(store, config),
-      market: createMarket(store, { production: config.production }),
+      market: createMarket(store, {
+        production: config.production,
+        paymentEnabled: payments.enabled,
+      }),
     };
   } catch (e) {
     // A failing route must never close pools that other routes are using.

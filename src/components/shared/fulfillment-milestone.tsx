@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { ApiError } from "./api";
 import { money, type Account, type Agreement, type Milestone } from "./types";
 import { Feedback, Status } from "./ui";
 import { MilestoneRequirements } from "./task-terms";
@@ -24,16 +25,40 @@ export function MilestonePanel({
     agreement.id,
     milestone.id,
     milestone.revision,
+    `${agreement.effectiveTerms?.id}:${agreement.effectiveTerms?.revision}:${agreement.agreementTermsBinding}`,
   );
-  const mutation = useFulfillmentRequest(account.id, milestone.id);
+  const mutation = useFulfillmentRequest(
+    account.id,
+    milestone.id,
+    agreement.id,
+  );
   const [notice, setNotice] = useState(""),
     [reviewed, setReviewed] = useState(false);
   const feedback = useRef<HTMLDivElement>(null);
   const { snapshot, draft } = state,
     m = snapshot?.milestone ?? milestone;
   const publisher = agreement.owner_id === account.id;
-  const outdated = !!draft && draft.revision !== m.revision;
+  const outdated =
+    !!draft &&
+    (draft.revision !== m.revision ||
+      (!publisher &&
+        (draft.effectiveTermsId !== snapshot?.effectiveTermsId ||
+          draft.effectiveRevision !== snapshot?.effectiveRevision ||
+          draft.binding !== snapshot?.binding)));
+  const displayTerms = publisher
+    ? (snapshot?.submissions.at(-1)?.milestoneTerms ?? m.effectiveTerms)
+    : m.effectiveTerms;
+  const shown = displayTerms
+    ? {
+        ...m,
+        title: displayTerms.title,
+        amount_cents: displayTerms.amountCents,
+        deliverable: displayTerms.deliverable,
+        acceptance_criteria: displayTerms.acceptanceCriteria,
+      }
+    : m;
   const canWrite =
+    m.lifecycle !== "retired" &&
     snapshot?.agreementState === "active" &&
     account.account_status === "active" &&
     account.campus_verified;
@@ -44,13 +69,25 @@ export function MilestonePanel({
     if (notice || mutation.error || state.error || outdated)
       feedback.current?.focus();
   }, [notice, mutation.error, state.error, outdated]);
+  useEffect(() => {
+    if (
+      mutation.error instanceof ApiError &&
+      [401, 403, 404].includes(mutation.error.status)
+    )
+      reload();
+  }, [mutation.error, reload]);
   async function refresh() {
     const result = await state.refresh();
     if (result) {
       // Only refresh the parent when its state is stale. Re-loading an unchanged
       // active aggregate would restart child history reads and review controls.
       // Use the server state, never infer completion from an accepted set.
-      if (result.agreementState !== agreement.state) reload();
+      if (
+        result.agreementState !== agreement.state ||
+        result.effectiveTermsId !== agreement.effectiveTerms?.id ||
+        result.binding !== agreement.agreementTermsBinding
+      )
+        reload();
       setNotice(
         mutation.phase === "unknown"
           ? "Current state refreshed. This read does not confirm whether your earlier request succeeded. Retry the same request to obtain its receipt."
@@ -66,11 +103,23 @@ export function MilestonePanel({
     const body =
       operation === "submit"
         ? {
+            ...(base.effectiveTermsId
+              ? {
+                  expectedEffectiveTermsId: base.effectiveTermsId,
+                  expectedEffectiveRevision: base.effectiveRevision,
+                }
+              : {}),
             content: base.content,
             expectedVersion: base.version,
             expectedRevision: base.revision,
           }
         : {
+            ...(base.submissionTermsId
+              ? {
+                  submissionTermsId: base.submissionTermsId,
+                  submissionTermsRevision: base.submissionTermsRevision,
+                }
+              : {}),
             submissionId: base.submissionId,
             expectedVersion: base.version,
             expectedRevision: base.revision,
@@ -109,7 +158,13 @@ export function MilestonePanel({
       reload();
     }
     setReviewed(false);
-    await state.refresh();
+    const latest = await state.refresh();
+    if (
+      latest &&
+      (latest.effectiveTermsId !== agreement.effectiveTerms?.id ||
+        latest.binding !== agreement.agreementTermsBinding)
+    )
+      reload();
   }
   return (
     <article
@@ -119,12 +174,24 @@ export function MilestonePanel({
     >
       <div className="cb-row">
         <h2>
-          {m.position}. {m.title}
+          {m.position}. {shown.title}
         </h2>
         <Status value={m.state ?? "pending"} />
       </div>
-      <strong>{money(m.amount_cents)}</strong>
-      <MilestoneRequirements milestone={m} />
+      <strong>{money(shown.amount_cents)}</strong>
+      <MilestoneRequirements milestone={shown} />
+      {m.lifecycle === "retired" && (
+        <p className="cb-alert">
+          Retired stage · read-only history. This stage is excluded from current
+          work and completion.
+        </p>
+      )}
+      {snapshot?.effectiveRevision && (
+        <p className="cb-fine">
+          Current terms {snapshot.effectiveRevision}. New submissions must be
+          reviewed under this identity.
+        </p>
+      )}
       <button
         className="cb-button"
         disabled={state.loading || mutation.busy}
@@ -149,8 +216,26 @@ export function MilestonePanel({
         <button
           className="cb-button"
           disabled={state.loading || !!state.error || !snapshot}
-          onClick={() => {
-            state.setDraft(state.base());
+          onClick={async () => {
+            const visible = snapshot;
+            const fresh = await state.refresh();
+            if (!fresh) return;
+            // A second change during this explicit review must be shown first;
+            // it must not silently become the draft's new contract.
+            if (
+              fresh.milestone.revision !== visible?.milestone.revision ||
+              (!publisher &&
+                (fresh.effectiveTermsId !== visible?.effectiveTermsId ||
+                  fresh.binding !== visible?.binding))
+            ) {
+              setNotice(
+                "The terms changed again while refreshing. Review the newly loaded terms before keeping this draft against them.",
+              );
+              if (fresh.effectiveTermsId !== agreement.effectiveTerms?.id)
+                reload();
+              return;
+            }
+            state.setDraft(state.base(fresh));
             setReviewed(false);
             setNotice(
               "Your draft is kept. Review it against the latest submission and feedback before sending.",
@@ -185,7 +270,7 @@ export function MilestonePanel({
           )}
         </details>
       )}
-      {snapshot && (
+      {snapshot && m.lifecycle !== "retired" && (
         <FulfillmentForm
           publisher={publisher}
           snapshot={snapshot}

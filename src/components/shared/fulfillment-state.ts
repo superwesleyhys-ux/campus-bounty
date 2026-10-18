@@ -6,7 +6,7 @@ import {
   useState,
   type SetStateAction,
 } from "react";
-import { request } from "./api";
+import { ApiError, request } from "./api";
 import type { Agreement, Submission } from "./types";
 import type {
   FulfillmentDraft,
@@ -18,6 +18,7 @@ export function useFulfillmentState(
   agreementId: string,
   milestoneId: string,
   revision?: number,
+  termsIdentity?: string,
 ) {
   const storage = `campus:fulfillment-draft:${accountId}:${milestoneId}`;
   const [snapshot, setSnapshot] = useState<MilestoneSnapshot | null>(null);
@@ -47,6 +48,10 @@ export function useFulfillmentState(
         initial?.revision !== milestone.revision ||
         initial?.state !== milestone.state ||
         before.state !== agreement.state ||
+        before.effectiveTerms?.id !== agreement.effectiveTerms?.id ||
+        before.effectiveTerms?.revision !==
+          agreement.effectiveTerms?.revision ||
+        before.agreementTermsBinding !== agreement.agreementTermsBinding ||
         reviews.some((r) => r.milestone_revision > (milestone.revision ?? 0)) ||
         (latest?.version ?? 0) !== (milestone.version ?? 0) ||
         (milestone.latest_submission_id &&
@@ -60,10 +65,19 @@ export function useFulfillmentState(
         submissions,
         reviews,
         agreementState: agreement.state,
+        effectiveTermsId: agreement.effectiveTerms?.id,
+        effectiveRevision: agreement.effectiveTerms?.revision,
+        binding: agreement.agreementTermsBinding,
       };
       setSnapshot(next);
       return next;
     } catch (cause) {
+      if (
+        current === generation.current &&
+        cause instanceof ApiError &&
+        [401, 403, 404].includes(cause.status)
+      )
+        setSnapshot(null);
       if (current === generation.current)
         setError(
           cause instanceof Error
@@ -103,9 +117,15 @@ export function useFulfillmentState(
     return () => {
       generation.current++;
     };
-  }, [refresh, revision]);
+  }, [refresh, revision, termsIdentity]);
   function base(value = snapshot): FulfillmentDraft {
     return {
+      effectiveTermsId: value?.effectiveTermsId,
+      effectiveRevision: value?.effectiveRevision,
+      binding: value?.binding,
+      submissionTermsId: value?.submissions.at(-1)?.submissionTermsId,
+      submissionTermsRevision:
+        value?.submissions.at(-1)?.submissionTermsRevision,
       content: draft?.content ?? "",
       feedback: draft?.feedback ?? "",
       revision: value?.milestone.revision ?? 1,

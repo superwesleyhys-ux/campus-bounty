@@ -1,4 +1,5 @@
 "use client";
+import { TransactionAllocation } from "./transaction-terms";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, useResource } from "./api";
 import { useListingRequest } from "./listing-request";
@@ -251,6 +252,11 @@ export function ApplicationTermsReview({
           )}
         </>
       )}
+      <TransactionAllocation
+        key={`${account.id}:${id}`}
+        id={id}
+        account={account}
+      />
       <Feedback error={command.error} />
       {command.pending && !command.busy && (
         <div className="cb-alert">

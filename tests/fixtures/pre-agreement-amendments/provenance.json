@@ -1,0 +1,63 @@
+{
+  "source": "task-2-before/source",
+  "adaptation": "None; relative directory layout retained",
+  "files": [
+    {
+      "path": "backend/errors.mjs",
+      "sha256": "06b32dbc9bcec4fe0dfecc77ad14647b6bf7869ea9a8af4c0122b56d1b7f0668"
+    },
+    {
+      "path": "backend/db/store.mjs",
+      "sha256": "ea20439e3ad0cc6a986acf49b07e7eebcc6bd8e6a78d7913d65ad10210516a66"
+    },
+    {
+      "path": "backend/modules/conversation-inbox.mjs",
+      "sha256": "6e54146716bbcb872b93ee24b83207621f479233871cc26426bf4fab8287571f"
+    },
+    {
+      "path": "backend/modules/notifications.mjs",
+      "sha256": "1fc0e87656d86b9892df2f8c7a58f75882d80f5708aab24f9b566fb0770e6f35"
+    },
+    {
+      "path": "backend/modules/market.mjs",
+      "sha256": "19059513a7dd1dc0ba3c7c5ee922a8c77cc3df4bafe94c48615767b7d018233a"
+    },
+    {
+      "path": "backend/modules/common.mjs",
+      "sha256": "3f48b9c927021ba8bebf8351f3183ccd7bc80910229944d795cc9bbf36fe57d5"
+    },
+    {
+      "path": "backend/modules/teams.mjs",
+      "sha256": "222926dea39bbf7f52cd61acb2f0424dbcf34d4da333cd8ddab1a8e2c3404bc5"
+    },
+    {
+      "path": "backend/modules/tasks.mjs",
+      "sha256": "52ba1fd038971bb408fa03529930608e989f4e39dd873a4749b89088ea56124a"
+    },
+    {
+      "path": "backend/modules/goods.mjs",
+      "sha256": "18830eb6aa76efa9ba41a9511f4441499b2dba8624880b5cad37c91aece21c4f"
+    },
+    {
+      "path": "backend/modules/conversations.mjs",
+      "sha256": "72041aabbafcad1b4ef2d0119253cf575d7b3baf106fdfb8dc2a582e1a7ade58"
+    },
+    {
+      "path": "backend/modules/fulfillment.mjs",
+      "sha256": "3c6c420b8236545ce13527e3247ebd137274c8ba6d833bd65ecae26f8c4afbea"
+    },
+    {
+      "path": "backend/modules/listing-lifecycle.mjs",
+      "sha256": "7ecf4adbfe552ba42696fced4d410081b19b563f6d01424727de699d20c9f965"
+    },
+    {
+      "path": "backend/modules/workspace-history.mjs",
+      "sha256": "690bf0eafb0124a408c41c349472a31f8fe1259a7c7c7271d2eec00e13c8bded"
+    },
+    {
+      "path": "backend/modules/account.mjs",
+      "sha256": "94ee4bfd5c58a11d87d7ddb712b380c5867cc72d6bbc21057a0e6731cb2aa401"
+    }
+  ],
+  "scope": "Exact preTask2 createMarket dependency graph, no relative-import adaptation"
+}

@@ -4,7 +4,7 @@ import { readConfig } from "../../backend/config.mjs";
 import { endpoint } from "../../backend/http/endpoint.mjs";
 import { Problem } from "../../backend/errors.mjs";
 let runtimePromise;
-async function runtime() {
+export async function runtime() {
   try {
     // Validate the configured destination even after this route has initialized.
     // A process must not quietly serve an old database after configuration drift.

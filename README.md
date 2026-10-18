@@ -4,6 +4,10 @@
 
 这是当前开发源码的可复现快照。真实付款、外部邮件及完整生产验收尚未完成；本地模拟数据不代表真实交易。
 
+## Current development checkpoint
+
+This repository now includes in-progress transaction and agreement-change work. Read [current development status](docs/github-development-status.md) before using it. A sync commit is not a release or deployment; real login, payments and final acceptance remain incomplete. Historical verification sections below refer only to their named increments.
+
 ## 已接通的主要流程
 
 - 悬赏顶部 Apply、个人/团队申请、成员同意、邀请接受、退出及历史保留。

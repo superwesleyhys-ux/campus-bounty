@@ -1,3 +1,4 @@
+import type { StageTerms, TermsSnapshot } from "./amendment-types";
 export type Account = {
   id: string;
   display_name: string;
@@ -12,6 +13,9 @@ export type Account = {
   can_review_eligibility: boolean;
 };
 export type Milestone = {
+  effectiveTerms?: StageTerms | null;
+  lifecycle?: "included" | "retired";
+  protectedWork?: boolean;
   id: string;
   title: string;
   deliverable: string;
@@ -25,6 +29,7 @@ export type Milestone = {
   accepted_submission_id?: string | null;
 };
 export type Task = {
+  release_policy?: "per_milestone" | "final_completion" | null;
   visibility: "published" | "paused";
   terms_version: number;
   id: string;
@@ -90,6 +95,27 @@ export type Application = {
   members: { user_id: string; display_name?: string; confirmed: boolean }[];
 };
 export type Agreement = {
+  transaction?: {
+    releasePolicy: string | null;
+    provenance: string;
+    allocations?: {
+      member_id: string;
+      stage_position: number;
+      gross_cents: number;
+      recipient_fee_cents: number;
+      net_cents: number;
+    }[];
+  };
+  agreementAmendments?: boolean;
+  agreementTermsBinding?: "legacy" | "explicit";
+  originalTerms?: TermsSnapshot;
+  effectiveTerms?: TermsSnapshot;
+  currentRewardCents?: number;
+  amendmentSummary?: {
+    id: string;
+    proposalRevision: number;
+    status: string;
+  } | null;
   milestone_counts?: {
     pending: number;
     submitted: number;
@@ -135,6 +161,10 @@ export type Order = {
   tracking_number?: string;
 };
 export type Submission = {
+  submissionTermsId?: string;
+  submissionTermsRevision?: number;
+  submissionTerms?: TermsSnapshot;
+  milestoneTerms?: StageTerms;
   id: string;
   content: string;
   version: number;

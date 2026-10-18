@@ -1,3 +1,5 @@
+import type { Submission } from "./types";
+import { money } from "./types";
 import type { MilestoneSnapshot } from "./fulfillment-types";
 export function FulfillmentHistory({
   snapshot,
@@ -35,6 +37,7 @@ export function FulfillmentHistory({
           className="cb-deliverable"
         >
           <h3>Latest submission · Version {latest.version}</h3>
+          <SubmissionTerms submission={latest} />
           <p className="cb-prewrap">{latest.content}</p>
           <time dateTime={latest.created_at}>
             {new Date(latest.created_at).toLocaleString("en-US")}
@@ -50,6 +53,7 @@ export function FulfillmentHistory({
           {snapshot.submissions.slice(0, -1).map((s) => (
             <section id={`submission-${s.id}`} tabIndex={-1} key={s.id}>
               <h3>Version {s.version}</h3>
+              <SubmissionTerms submission={s} />
               <p className="cb-prewrap">{s.content}</p>
               <time dateTime={s.created_at}>
                 {new Date(s.created_at).toLocaleString("en-US")}
@@ -60,5 +64,26 @@ export function FulfillmentHistory({
         </details>
       )}
     </>
+  );
+}
+
+function SubmissionTerms({ submission: s }: { submission: Submission }) {
+  if (!s.submissionTerms || !s.milestoneTerms) return null;
+  const m = s.milestoneTerms;
+  return (
+    <div className="cb-submission-terms">
+      <p>
+        <strong>Submitted under terms {s.submissionTermsRevision}</strong> ·{" "}
+        {money(m.amountCents)} · Target{" "}
+        {s.submissionTerms.terms.dueDate || "not specified"}
+      </p>
+      <p className="cb-prewrap">
+        Scope at submission: {s.submissionTerms.terms.description}
+      </p>
+      <p className="cb-prewrap">Deliverable: {m.deliverable}</p>
+      <p className="cb-prewrap">
+        Acceptance criteria: {m.acceptanceCriteria || "None specified"}
+      </p>
+    </div>
   );
 }

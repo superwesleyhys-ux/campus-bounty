@@ -2,6 +2,9 @@ import { money } from "./types";
 import type { ListingTerms } from "./listing-types";
 const names: Record<string, string> = {
   title: "Title",
+  releasePolicy: "Release policy",
+  fullUpfront: "Full upfront funding required",
+  transactionDisclosureVersion: "Fee disclosure",
   description: "Description",
   category: "Category",
   rewardCents: "Total reward",
@@ -14,6 +17,12 @@ const names: Record<string, string> = {
 };
 function value(key: string, v: unknown): string {
   if (v === undefined || v === null || v === "") return "Not specified";
+  if (key === "releasePolicy")
+    return v === "per_milestone"
+      ? "After each accepted milestone"
+      : "After final completion";
+  if (key === "transactionDisclosureVersion")
+    return "Platform fee $0; processing fee shared 50/50; recipient half follows confirmed reward ratios; publisher pays odd cent.";
   if (key.endsWith("Cents")) return money(v as number);
   if (key === "milestones")
     return (v as Extract<ListingTerms, { milestones: unknown }>["milestones"])

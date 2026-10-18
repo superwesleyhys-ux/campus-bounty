@@ -26,8 +26,16 @@ export type MilestoneSnapshot = {
   submissions: Submission[];
   reviews: MilestoneReview[];
   agreementState: string;
+  effectiveTermsId?: string;
+  effectiveRevision?: number;
+  binding?: "legacy" | "explicit";
 };
 export type FulfillmentDraft = {
+  effectiveTermsId?: string;
+  effectiveRevision?: number;
+  binding?: "legacy" | "explicit";
+  submissionTermsId?: string;
+  submissionTermsRevision?: number;
   content: string;
   feedback: string;
   revision: number;

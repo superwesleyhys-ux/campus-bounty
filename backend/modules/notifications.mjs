@@ -1,3 +1,4 @@
+import { amendmentSchemaPresent } from "./agreement-amendments.mjs";
 import {
   z,
   parse,
@@ -143,6 +144,26 @@ const templatesV1 = {
     "Your student eligibility review was not approved. View the outcome for details.",
   ],
 };
+for (const operation of [
+  "propose",
+  "revise",
+  "confirm",
+  "reject",
+  "withdraw",
+  "effective",
+  "agreed_waiting_funds",
+  "stale_base",
+  "stale_work",
+  "stale_agreement",
+  "materialize",
+  "retire",
+])
+  templatesV1["agreement.amendment." + operation] = [
+    "Agreement amendment activity",
+    operation === "agreed_waiting_funds"
+      ? "All parties agreed. Funding reconciliation is unavailable; current terms remain effective."
+      : "Review the exact agreement proposal revision and its history.",
+  ];
 const timestamp = z.iso
   .datetime({ precision: 6 })
   .refine((v) => !v.startsWith("0000-"));
@@ -229,16 +250,24 @@ function present(row) {
       row.target && row.kind === "message.received"
         ? (row.message_context ?? null)
         : null,
+    amendmentContext: row.target ? (row.amendment_context ?? null) : null,
     navigationAnchor:
-      row.target && row.work_context
-        ? {
-            type: "milestone",
-            milestoneId: row.work_context.milestoneId,
-            submissionId: row.work_context.submissionId,
-            reviewId: row.work_context.reviewId,
-          }
-        : null,
+      row.target && row.amendment_context
+        ? { type: "amendment", ...row.amendment_context }
+        : row.target && row.work_context
+          ? {
+              type: "milestone",
+              milestoneId: row.work_context.milestoneId,
+              submissionId: row.work_context.submissionId,
+              reviewId: row.work_context.reviewId,
+            }
+          : null,
   };
+}
+async function amendmentColumns(c) {
+  return (await amendmentSchemaPresent(c))
+    ? `,(SELECT jsonb_build_object('agreementId',ac.agreement_id,'amendmentId',ac.amendment_id,'proposalRevision',ac.proposal_revision,'eventId',ac.event_id) FROM campus.agreement_amendment_notification_context ac WHERE ac.notification_id=notifications.id) AS amendment_context`
+    : ",NULL::jsonb AS amendment_context";
 }
 export function notificationModule(store) {
   const { privateRead } = context(store);
@@ -248,7 +277,7 @@ export function notificationModule(store) {
       return privateRead(actor, async (c) => {
         const rows = (
           await c.query(
-            `SELECT ${columns} FROM campus.notifications
+            `SELECT ${columns}${await amendmentColumns(c)} FROM campus.notifications
           WHERE recipient_id=$1 AND (NOT $2::boolean OR read_at IS NULL)
           AND ($3::timestamptz IS NULL OR (created_at,id)<($3::timestamptz,$4::uuid))
           ORDER BY campus.notifications.created_at DESC,id DESC LIMIT $5`,
@@ -315,7 +344,7 @@ export function notificationModule(store) {
           found(
             (
               await c.query(
-                `SELECT ${columns} FROM campus.notifications WHERE id=$1 AND recipient_id=$2`,
+                `SELECT ${columns}${await amendmentColumns(c)} FROM campus.notifications WHERE id=$1 AND recipient_id=$2`,
                 [id, actor],
               )
             ).rows[0],

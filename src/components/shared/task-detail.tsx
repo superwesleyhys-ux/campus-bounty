@@ -15,6 +15,7 @@ import {
   type Application,
 } from "./types";
 import { Feedback, Field, PendingButton, ResourceState, Status } from "./ui";
+import { ReleaseDisclosure } from "./transaction-terms";
 import { MilestoneRequirements, TargetDeliveryDate } from "./task-terms";
 import { ApplicationCard } from "./application-card";
 
@@ -94,6 +95,7 @@ export function TaskDetail({
           <h1>{t.title}</h1>
           <Status value={t.status} />
           <TargetDeliveryDate value={t.due_date} />
+          <ReleaseDisclosure policy={t.release_policy} />
         </div>
         <div className="cb-reward">
           <small>Total reward</small>

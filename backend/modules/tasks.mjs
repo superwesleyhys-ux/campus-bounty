@@ -1,3 +1,5 @@
+import { transactionCapabilities } from "./payment-allocations.mjs";
+import { agreementProjection } from "./agreement-amendments.mjs";
 import { fulfillmentModule, workSql } from "./fulfillment.mjs";
 import { member, idempotent } from "../db/store.mjs";
 export {
@@ -53,6 +55,10 @@ export const taskSchema = z.strictObject({
     .describe(
       "Target delivery calendar date in YYYY-MM-DD format, years 1000 through 9999. Does not close applications or trigger cancellation.",
     ),
+  releasePolicy: z
+    .enum(["per_milestone", "final_completion"])
+    .nullable()
+    .optional(),
   milestones: z.array(milestoneSchema).min(1).max(20),
 });
 
@@ -183,9 +189,24 @@ export function taskModule(store) {
         "Milestone amounts must equal the task reward.",
       );
       return command(actor, "task.publish", key, data, async (c) => {
+        const capabilities = await transactionCapabilities(c);
+        requireThat(
+          !capabilities.transactionTerms || !!data.releasePolicy,
+          422,
+          "release_policy_required",
+          "Choose a release policy explicitly.",
+        );
+        requireThat(
+          capabilities.transactionTerms || !data.releasePolicy,
+          503,
+          "transaction_terms_unavailable",
+          "Transaction terms are unavailable on this schema.",
+        );
         const task = (
           await c.query(
-            "INSERT INTO campus.tasks(owner_id,title,category,description,reward_cents,due_date) VALUES($1,$2,$3,$4,$5,$6) RETURNING *,to_char(due_date,'YYYY-MM-DD') AS due_date",
+            capabilities.transactionTerms
+              ? "INSERT INTO campus.tasks(owner_id,title,category,description,reward_cents,due_date,release_policy) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *,to_char(due_date,'YYYY-MM-DD') AS due_date"
+              : "INSERT INTO campus.tasks(owner_id,title,category,description,reward_cents,due_date) VALUES($1,$2,$3,$4,$5,$6) RETURNING *,to_char(due_date,'YYYY-MM-DD') AS due_date",
             [
               actor,
               data.title,
@@ -193,6 +214,7 @@ export function taskModule(store) {
               data.description,
               data.rewardCents,
               data.dueDate ?? null,
+              ...(capabilities.transactionTerms ? [data.releasePolicy] : []),
             ],
           )
         ).rows[0];
@@ -442,45 +464,51 @@ export function taskModule(store) {
           },
         );
         await member(c, actor, { write: true, apply: true });
-        return found(
-          (
-            await c.query("SELECT * FROM campus.agreements WHERE id=$1", [
-              receipt.id,
-            ])
-          ).rows[0],
+        return agreementProjection(
+          c,
+          found(
+            (
+              await c.query("SELECT * FROM campus.agreements WHERE id=$1", [
+                receipt.id,
+              ])
+            ).rows[0],
+          ),
         );
       });
     },
     agreements: (actor) =>
-      privateRead(
-        actor,
-        async (c) =>
-          (
-            await c.query(
-              `SELECT a.*, (SELECT jsonb_build_object('pending',count(*) FILTER(WHERE m.state='pending'),'submitted',count(*) FILTER(WHERE m.state='submitted'),'revision_requested',count(*) FILTER(WHERE m.state='revision_requested'),'accepted',count(*) FILTER(WHERE m.state='accepted'),'total',count(*)) FROM campus.milestones m WHERE m.agreement_id=a.id) AS milestone_counts FROM campus.agreements a ORDER BY created_at DESC,id DESC LIMIT 100`,
-            )
-          ).rows,
-      ),
+      privateRead(actor, async (c) => {
+        const rows = (
+          await c.query(
+            "SELECT a.*, (SELECT jsonb_build_object('pending',count(*) FILTER(WHERE m.state='pending'),'submitted',count(*) FILTER(WHERE m.state='submitted'),'revision_requested',count(*) FILTER(WHERE m.state='revision_requested'),'accepted',count(*) FILTER(WHERE m.state='accepted'),'total',count(*)) FROM campus.milestones m WHERE m.agreement_id=a.id) AS milestone_counts FROM campus.agreements a ORDER BY created_at DESC,id DESC LIMIT 100",
+          )
+        ).rows;
+        const result = [];
+        for (const row of rows) result.push(await agreementProjection(c, row));
+        return result;
+      }),
     agreement: async (actor, id) => {
       uuid(id);
-      return privateRead(actor, async (c) => ({
-        ...found(
-          (await c.query("SELECT * FROM campus.agreements WHERE id=$1", [id]))
-            .rows[0],
-        ),
-        members: (
-          await c.query(
-            "SELECT user_id FROM campus.agreement_members WHERE agreement_id=$1 ORDER BY user_id",
-            [id],
-          )
-        ).rows,
-        milestones: (
-          await c.query(
-            "SELECT * FROM campus.milestones WHERE agreement_id=$1 ORDER BY position",
-            [id],
-          )
-        ).rows,
-      }));
+      return privateRead(actor, async (c) =>
+        agreementProjection(c, {
+          ...found(
+            (await c.query("SELECT * FROM campus.agreements WHERE id=$1", [id]))
+              .rows[0],
+          ),
+          members: (
+            await c.query(
+              "SELECT user_id FROM campus.agreement_members WHERE agreement_id=$1 ORDER BY user_id",
+              [id],
+            )
+          ).rows,
+          milestones: (
+            await c.query(
+              "SELECT * FROM campus.milestones WHERE agreement_id=$1 ORDER BY position",
+              [id],
+            )
+          ).rows,
+        }),
+      );
     },
     ...fulfillmentModule(store),
   };

@@ -1,6 +1,7 @@
 import type { Task, Product, Application } from "./types";
 export type ListingKind = "task" | "product";
 export type TaskTerms = {
+  releasePolicy?: "per_milestone" | "final_completion" | null;
   title: string;
   description: string;
   category: string;
@@ -83,6 +84,7 @@ export function currentTerms(row: Listing): ListingTerms {
         category: row.category,
         rewardCents: row.reward_cents,
         dueDate: row.due_date || null,
+        ...(row.release_policy ? { releasePolicy: row.release_policy } : {}),
         milestones: row.milestones.map((m) => ({
           title: m.title,
           deliverable: m.deliverable,

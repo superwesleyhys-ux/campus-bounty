@@ -1,4 +1,5 @@
 "use client";
+import { ReleaseChoice, type ReleasePolicy } from "./transaction-terms";
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError, useResource } from "./api";
@@ -30,6 +31,7 @@ type Draft = {
   category: string;
   amount: string;
   dueDate: string;
+  releasePolicy: string;
   stock: string;
   pickup: boolean;
   shipping: boolean;
@@ -44,6 +46,7 @@ function draftOf(row: Listing): Draft {
     category: "category" in t ? t.category : "Research",
     amount: String(("rewardCents" in t ? t.rewardCents : t.priceCents) / 100),
     dueDate: "dueDate" in t ? t.dueDate || "" : "",
+    releasePolicy: "releasePolicy" in t ? t.releasePolicy || "" : "",
     stock: "stock" in t ? String(t.stock) : "0",
     pickup:
       "deliveryMethods" in t ? t.deliveryMethods.includes("pickup") : true,
@@ -105,6 +108,9 @@ function termsOf(d: Draft, kind: ListingKind): ListingTerms {
     category: d.category,
     rewardCents: amount,
     dueDate: d.dueDate,
+    ...(d.releasePolicy
+      ? { releasePolicy: d.releasePolicy as ReleasePolicy }
+      : {}),
     milestones,
   };
 }
@@ -150,6 +156,9 @@ function Editor({
   account: Account;
   reload: () => void;
 }) {
+  const capabilities = useResource<{ transactionTerms: boolean }>(
+    "capabilities",
+  );
   const router = useRouter(),
     query = useSearchParams(),
     path = listingPath(kind, row.id),
@@ -480,6 +489,13 @@ function Editor({
                         ? " — amounts must match"
                         : ""}
                     </p>
+                    {capabilities.data?.transactionTerms && (
+                      <ReleaseChoice
+                        legacy
+                        value={draft.releasePolicy}
+                        onChange={(releasePolicy) => update({ releasePolicy })}
+                      />
+                    )}
                     {draft.milestones.map((m, i) => (
                       <fieldset key={m.key}>
                         <legend>Milestone {i + 1}</legend>

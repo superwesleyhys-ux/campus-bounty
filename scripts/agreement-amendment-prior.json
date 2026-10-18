@@ -1,0 +1,18 @@
+{
+  "backend/db/migrations/001_foundation.sql": "ad3759fcff58538fedbf074b6b1d7da5e48581047675b0a320664d51f532514b",
+  "backend/db/migrations/002_workflow_guards.sql": "3bdd3b50670af1fd2b4e7cad6f8fed9e1851ecab723275039e2140c1d4195a5f",
+  "backend/db/migrations/003_participant_labels.sql": "f8d83263a613ba7de8ca14509faa9dff67682df3fe79570a156b44729896d9ea",
+  "backend/db/migrations/004_task_terms.sql": "3fc5eb151c543136c460437a9e4e5434db3f657c1c92a8f1d619d0c21d19ca20",
+  "backend/db/migrations/005_application_lifecycle.sql": "55b3e00d6e1a132f443d0cf3c76399f4920a77f5a99e249e653b5ca81540a89f",
+  "backend/db/migrations/006_order_cancellation.sql": "e795105c3723102bc129b2fdb786a01867d9fc21b4864e31e5f60a7573d0ca54",
+  "backend/db/migrations/007_account_eligibility.sql": "09bd68979454690c716a48088f2a8d438cf209037c321857eb04947289e55f6c",
+  "backend/db/migrations/008_team_lifecycle.sql": "413719c439b710332db1d77903e31b3d0cd64f255c12188cd4136009087edec6",
+  "backend/db/migrations/009_team_context.sql": "88dc7aaf4e28b02636b1a0bb65f55a14eddfe42211beb4e7d5f77316483870f0",
+  "backend/db/migrations/010_milestone_revision_workflow.sql": "14266b68faaae8db3104872ceaffd78f8cfb92b45b6e3a1a3b550af250ad27f1",
+  "backend/db/migrations/011_notifications_and_overview.sql": "3a08d04d84ba90fb636b574591e3720c92fa60aba13bee99ac976a0a79075011",
+  "backend/db/migrations/012_conversation_history_context.sql": "05ce34dd5067ae44bf6e1f15cc995f8184ddbe6e352228c554fb919bdf837d26",
+  "backend/db/migrations/013_message_scope_revalidation.sql": "ed5d08606e7dd93d588cba87993dbd5f7f9c556649da7f9e60b39d1414405190",
+  "backend/db/migrations/014_application_conversations.sql": "57c0cb2114f2941374660309dd94afef8ebac946dc14c807cccfc99756f0459c",
+  "backend/db/migrations/015_listing_lifecycle.sql": "d675796a42c66583f72db913705338b5b7b4485a0f50e852159c432dffa40aa2",
+  "backend/db/migrations/016_acknowledgement_version_index.sql": "3decf8054e5c4f8935c0b3fad6ed0608051175328470fa91cc48480ed87bf3c1"
+}

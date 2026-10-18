@@ -44,7 +44,11 @@
     ".next-backend-dev/types/**/*.ts",
     ".next-backend-dev/dev/types/**/*.ts",
     ".next-interaction/types/**/*.ts",
-    ".next-interaction/dev/types/**/*.ts"
+    ".next-interaction/dev/types/**/*.ts",
+    ".next-backend-transaction/types/**/*.ts",
+    ".next-backend-transaction/dev/types/**/*.ts",
+    ".next-backend-transaction-fix1/types/**/*.ts",
+    ".next-backend-transaction-fix1/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

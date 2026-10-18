@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { ApiError } from "./api";
 import { useFulfillmentRequest } from "./fulfillment-request";
 import { Feedback } from "./ui";
 import type { Account, Agreement } from "./types";
@@ -21,10 +22,20 @@ export function AgreementCompletion({
   useEffect(() => {
     if (notice || mutation.error) status.current?.focus();
   }, [notice, mutation.error]);
+  useEffect(() => {
+    if (
+      mutation.error instanceof ApiError &&
+      [401, 403, 404].includes(mutation.error.status)
+    )
+      reload();
+  }, [mutation.error, reload]);
+  const included = agreement.milestones.filter(
+    (m) => m.lifecycle !== "retired",
+  );
   const eligible =
     agreement.state === "active" &&
-    agreement.milestones.length > 0 &&
-    agreement.milestones.every((m) => m.state === "accepted");
+    included.length > 0 &&
+    included.every((m) => m.state === "accepted");
   if (
     account.id !== agreement.owner_id ||
     (!eligible &&

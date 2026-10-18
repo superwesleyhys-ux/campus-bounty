@@ -1,3 +1,4 @@
+import { agreementProjection } from "./agreement-amendments.mjs";
 // Opt-in foundation: do not register until migration 015 has been reviewed/applied.
 import {
   z,
@@ -194,7 +195,26 @@ export function listingLifecycleModule(store) {
           return r;
         },
       );
-      return { receipt, replayed, current: await applicationReview(c, id) };
+      return {
+        receipt,
+        replayed,
+        current: await applicationReview(c, id),
+        ...(receipt.agreementId
+          ? {
+              agreement: await agreementProjection(
+                c,
+                found(
+                  (
+                    await c.query(
+                      "SELECT * FROM campus.agreements WHERE id=$1",
+                      [receipt.agreementId],
+                    )
+                  ).rows[0],
+                ),
+              ),
+            }
+          : {}),
+      };
     });
   }
   async function applicationReview(c, id) {

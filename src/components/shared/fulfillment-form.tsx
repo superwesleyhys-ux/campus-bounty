@@ -25,7 +25,11 @@ export function FulfillmentForm({
 }) {
   const m = snapshot.milestone,
     latest = snapshot.submissions.at(-1);
-  const requirements = m.acceptance_criteria?.trim()
+  const requirements = (
+    latest?.milestoneTerms?.acceptanceCriteria ??
+    m.effectiveTerms?.acceptanceCriteria ??
+    m.acceptance_criteria
+  )?.trim()
     ? "agreed deliverable and acceptance criteria"
     : "agreed deliverable";
   if (m.state === "accepted") return null;
@@ -41,6 +45,12 @@ export function FulfillmentForm({
           <p className="cb-alert" role="status">
             Waiting for the publisher to review version {latest.version}. You
             can submit a new version until this milestone is accepted.
+          </p>
+        )}
+        {snapshot.effectiveRevision && (
+          <p>
+            Submitting under current terms {snapshot.effectiveRevision}. Review
+            the current scope, date and stage requirements before sending.
           </p>
         )}
         <Field
@@ -71,9 +81,12 @@ export function FulfillmentForm({
   return (
     <div className="cb-review-form">
       <p>
-        Review version {latest.version} against the {requirements}. Feedback
-        requests corrections within those terms; it does not add new scope to
-        the agreement.
+        Review version {latest.version}
+        {latest.submissionTermsRevision
+          ? ` under its historical terms ${latest.submissionTermsRevision}`
+          : ""}{" "}
+        against the {requirements}. Feedback requests corrections within those
+        terms; it does not add new scope to the agreement.
       </p>
       <form
         onSubmit={(e) => {

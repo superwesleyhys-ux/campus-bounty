@@ -1,3 +1,10 @@
+import {
+  amendmentSql,
+  amendmentSchemaPresent,
+  agreementCapabilities,
+  submissionTermsProjection,
+  termsProjection,
+} from "./agreement-amendments.mjs";
 import { z, parse, found, uuid, empty, text, context } from "./common.mjs";
 import { account, idempotent } from "../db/store.mjs";
 import { Problem } from "../errors.mjs";
@@ -8,8 +15,14 @@ export const submissionSchema = z.strictObject({
   content: text,
   expectedVersion: version,
   expectedRevision: revision,
+  expectedEffectiveTermsId: z.uuid().optional(),
+  expectedEffectiveRevision: revision.optional(),
 });
 export const reviewSchema = z.strictObject({
+  transactionTermsId: z.uuid().optional(),
+  transactionTermsRevision: revision.optional(),
+  submissionTermsId: z.uuid().optional(),
+  submissionTermsRevision: revision.optional(),
   submissionId: z.uuid(),
   expectedVersion: version.min(1),
   expectedRevision: revision,
@@ -17,6 +30,23 @@ export const reviewSchema = z.strictObject({
 export const revisionRequestSchema = reviewSchema.extend({ feedback: text });
 
 const errors = {
+  funds_held:[409,"New work is paused while this agreement has an active financial risk hold."],
+  allocation_required: [
+    409,
+    "The applicant must propose recipient allocations.",
+  ],
+  fee_policy_pending: [
+    409,
+    "An approved exact fee estimate and adjustment policy are required before acceptance.",
+  ],
+  financial_consent_required: [
+    409,
+    "The publisher and every recipient must confirm exact financial terms.",
+  ],
+  stale_allocation_revision: [
+    409,
+    "Refresh and confirm the current allocation revision.",
+  ],
   terms_review_required: [
     409,
     "Every frozen participant must explicitly review and confirm the current terms version.",
@@ -73,7 +103,7 @@ const errors = {
 };
 export async function workSql(c, sql, values) {
   try {
-    return await c.query(sql, values);
+    return await amendmentSql(c, sql, values);
   } catch (error) {
     if (errors[error.message]) {
       const [status, detail] = errors[error.message];
@@ -96,17 +126,52 @@ async function snapshot(c, id, receipt) {
     (await c.query("SELECT * FROM campus.milestones WHERE id=$1", [id]))
       .rows[0],
   );
-  return {
-    milestone,
-    submission: milestone.latest_submission_id
-      ? found(
-          (
-            await c.query("SELECT * FROM campus.submissions WHERE id=$1", [
-              milestone.latest_submission_id,
-            ])
-          ).rows[0],
+  const hasTerms = await amendmentSchemaPresent(c);
+  const boundSubmission =
+    milestone.latest_submission_id && hasTerms
+      ? await submissionTermsProjection(
+          c,
+          found(
+            (
+              await c.query("SELECT * FROM campus.submissions WHERE id=$1", [
+                milestone.latest_submission_id,
+              ])
+            ).rows[0],
+          ),
         )
-      : null,
+      : null;
+  const termsState = hasTerms
+    ? found(
+        (
+          await c.query(
+            "SELECT effective_terms_id FROM campus.agreement_terms_state WHERE agreement_id=$1",
+            [milestone.agreement_id],
+          )
+        ).rows[0],
+      )
+    : null;
+  return {
+    ...(termsState
+      ? {
+          effectiveTerms: await termsProjection(
+            c,
+            milestone.agreement_id,
+            termsState.effective_terms_id,
+          ),
+        }
+      : {}),
+    milestone,
+    submission:
+      boundSubmission ??
+      (milestone.latest_submission_id
+        ? found(
+            (
+              await c.query("SELECT * FROM campus.submissions WHERE id=$1", [
+                milestone.latest_submission_id,
+              ])
+            ).rows[0],
+          )
+        : null),
     agreement: found(
       (
         await c.query("SELECT id,state FROM campus.agreements WHERE id=$1", [
@@ -141,20 +206,57 @@ export function fulfillmentModule(store) {
         key,
         data,
         async () => {
+          const hasTerms = await amendmentSchemaPresent(c);
+          if (
+            !hasTerms &&
+            [
+              data.expectedEffectiveTermsId,
+              data.expectedEffectiveRevision,
+              data.submissionTermsId,
+              data.submissionTermsRevision,
+            ].some((v) => v !== undefined)
+          )
+            throw new Problem(
+              503,
+              "agreement_amendments_unavailable",
+              "Explicit agreement terms are not installed.",
+            );
           if (operation === "submit") {
             const row = (
               await workSql(
                 c,
-                "SELECT campus.submit_milestone_work($1,$2,$3,$4) AS id",
-                [id, data.expectedVersion, data.expectedRevision, data.content],
+                hasTerms
+                  ? "SELECT campus.submit_milestone_work($1,$2,$3,$4,$5,$6) AS id"
+                  : "SELECT campus.submit_milestone_work($1,$2,$3,$4) AS id",
+                [
+                  id,
+                  data.expectedVersion,
+                  data.expectedRevision,
+                  data.content,
+                  ...(hasTerms
+                    ? [
+                        data.expectedEffectiveTermsId ?? null,
+                        data.expectedEffectiveRevision ?? null,
+                      ]
+                    : []),
+                ],
               )
             ).rows[0];
             return { operation, submissionId: row.id };
           }
+          const hasMoney = (
+            await c.query(
+              "SELECT to_regprocedure('campus.money_capabilities()') IS NOT NULL AS present",
+            )
+          ).rows[0].present;
           const row = (
             await workSql(
               c,
-              "SELECT campus.review_milestone_work($1,$2,$3,$4,$5,$6) AS id",
+              hasMoney
+                ? "SELECT campus.review_milestone_work($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS id"
+                : hasTerms
+                  ? "SELECT campus.review_milestone_work($1,$2,$3,$4,$5,$6,$7,$8) AS id"
+                  : "SELECT campus.review_milestone_work($1,$2,$3,$4,$5,$6) AS id",
               [
                 id,
                 data.submissionId,
@@ -162,6 +264,18 @@ export function fulfillmentModule(store) {
                 data.expectedRevision,
                 operation,
                 data.feedback ?? "",
+                ...(hasTerms
+                  ? [
+                      data.submissionTermsId ?? null,
+                      data.submissionTermsRevision ?? null,
+                      ...(hasMoney
+                        ? [
+                            data.transactionTermsId ?? null,
+                            data.transactionTermsRevision ?? null,
+                          ]
+                        : []),
+                    ]
+                  : []),
               ],
             )
           ).rows[0];
@@ -191,12 +305,15 @@ export function fulfillmentModule(store) {
           (await c.query("SELECT id FROM campus.milestones WHERE id=$1", [id]))
             .rows[0],
         );
-        return (
+        const rows = (
           await c.query(
             "SELECT * FROM campus.submissions WHERE milestone_id=$1 ORDER BY version",
             [id],
           )
         ).rows;
+        return (await amendmentSchemaPresent(c))
+          ? Promise.all(rows.map((s) => submissionTermsProjection(c, s)))
+          : rows;
       });
     },
     milestoneReviews: async (actor, id) => {
@@ -206,12 +323,29 @@ export function fulfillmentModule(store) {
           (await c.query("SELECT id FROM campus.milestones WHERE id=$1", [id]))
             .rows[0],
         );
-        return (
+        const rows = (
           await c.query(
             "SELECT * FROM campus.milestone_reviews WHERE milestone_id=$1 ORDER BY created_at,id",
             [id],
           )
         ).rows;
+        if (!(await amendmentSchemaPresent(c))) return rows;
+        return Promise.all(
+          rows.map(async (r) => ({
+            ...r,
+            submission: await submissionTermsProjection(
+              c,
+              found(
+                (
+                  await c.query(
+                    "SELECT * FROM campus.submissions WHERE id=$1",
+                    [r.submission_id],
+                  )
+                ).rows[0],
+              ),
+            ),
+          })),
+        );
       });
     },
     completeAgreement: async (actor, id, input, key) => {

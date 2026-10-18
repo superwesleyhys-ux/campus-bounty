@@ -1267,3 +1267,62 @@
 .cb-compose .cb-button {
   min-height: 44px;
 }
+
+/* Agreement changes follow the existing shared-workspace layout and controls. */
+.cb-amendments,
+.cb-amendment-terms,
+.cb-amendment-comparison {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cb-amendments > h2 {
+  margin-block: 24px 16px;
+}
+.cb-amendments .cb-button {
+  margin: 4px 8px 8px 0;
+  white-space: normal;
+}
+.cb-amendment-form fieldset {
+  min-width: 0;
+}
+.cb-amendment-comparison dd {
+  margin: 8px 0 16px;
+}
+.cb-amendment-comparison dt {
+  font-weight: 600;
+}
+.cb-amendment-people {
+  padding-left: 24px;
+}
+.cb-amendment-people li {
+  margin-bottom: 12px;
+}
+.cb-amendment-dialog {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 24px;
+  color: var(--cb-ink);
+  border: 1px solid var(--cb-border);
+  border-radius: 9px;
+}
+.cb-amendment-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+.cb-amendment-stage fieldset {
+  padding: 12px;
+}
+.cb-amendment-terms li,
+.cb-submission-terms {
+  margin-block: 16px;
+}
+@media (max-width: 480px) {
+  .cb-amendment-form fieldset {
+    padding: 12px;
+  }
+  .cb-amendment-form .cb-amendment-stage {
+    padding: 8px;
+  }
+  .cb-amendment-dialog {
+    padding: 16px;
+  }
+}

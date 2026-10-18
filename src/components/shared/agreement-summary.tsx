@@ -57,9 +57,9 @@ export function AgreementSummary({
         </p>
       )}
       <p className="cb-fine">
-        {counts.accepted} of {counts.total} accepted · {counts.submitted}{" "}
-        awaiting review · {counts.revision_requested} need changes ·{" "}
-        {counts.pending} not submitted
+        {counts.accepted} of {counts.total} included milestones accepted ·{" "}
+        {counts.submitted} awaiting review · {counts.revision_requested} need
+        changes · {counts.pending} not submitted
       </p>
     </div>
   );

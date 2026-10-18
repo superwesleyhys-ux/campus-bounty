@@ -158,14 +158,14 @@ export function Workspace({ account }: { account: Account }) {
               <div>
                 <h2>
                   <Link href={detail("workspace", item.id, "agreement")}>
-                    {item.terms.taskTitle}
+                    {(item.effectiveTerms?.terms ?? item.terms).taskTitle}
                   </Link>
                 </h2>
                 <p>
                   {item.owner_id === account.id
                     ? "You are the publisher"
                     : "You are a participant"}{" "}
-                  · {money(item.terms.rewardCents)}
+                  · {money(item.currentRewardCents ?? item.terms.rewardCents)}
                 </p>
               </div>
               <Status value={item.state} />

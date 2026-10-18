@@ -1,3 +1,10 @@
+import { addPaymentOpenapi } from "./payment-openapi.mjs";
+import { addTransactionTermsOpenapi } from "./transaction-terms-openapi.mjs";
+import {
+  allocationProposalSchema,
+  allocationConfirmationSchema,
+} from "../backend/modules/payment-allocations.mjs";
+import { addAgreementAmendmentOpenapi } from "./agreement-amendment-openapi.mjs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { taskSchema } from "../backend/modules/tasks.mjs";
@@ -65,6 +72,10 @@ const address = object(
   ["name", "line1", "city", "region", "postalCode", "country"],
 );
 const bodies = {
+  "/applications/{id}/allocations": z.toJSONSchema(allocationProposalSchema),
+  "/applications/{id}/allocations/{revision}/confirmations": z.toJSONSchema(
+    allocationConfirmationSchema,
+  ),
   "/notifications/{id}/read": empty,
   "/me": z.toJSONSchema(profileSchema),
   "/me/eligibility-requests": z.toJSONSchema(eligibilityRequestSchema),
@@ -1421,6 +1432,9 @@ spec.components.schemas.Notification.properties.listingContext = nullable(
   }),
 );
 spec.components.schemas.Notification.required.push("listingContext");
+addAgreementAmendmentOpenapi(spec);
+addTransactionTermsOpenapi(spec);
+addPaymentOpenapi(spec);
 await writeFile(
   new URL("../docs/backend-openapi.json", import.meta.url),
   JSON.stringify(spec, null, 2) + "\n",

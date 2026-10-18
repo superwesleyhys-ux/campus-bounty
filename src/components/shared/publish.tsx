@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useMutation } from "./api";
+import { ReleaseChoice, ReleaseDisclosure } from "./transaction-terms";
+import { useMutation, useResource } from "./api";
 import { categories, money, type Account } from "./types";
 import { Feedback, Field, PendingButton } from "./ui";
 import { dollarsToCents } from "@/lib/shared-input.mjs";
@@ -20,6 +21,7 @@ const initial = {
   shipping: false,
   shippingAmount: "0",
   dueDate: "",
+  releasePolicy: "",
   milestones: [
     { title: "", amount: "", deliverable: "", acceptanceCriteria: "" },
   ],
@@ -38,6 +40,9 @@ export function Publish({
     [step, setStep] = useState(1),
     [formError, setFormError] = useState<Error | null>(null),
     [draftNotice, setDraftNotice] = useState("");
+  const capabilities = useResource<{ transactionTerms: boolean }>(
+    "capabilities",
+  );
   const mutation = useMutation(account.id),
     storage = `campus:draft:${account.id}:${kind}`;
   const formRef = useRef<HTMLFormElement>(null),
@@ -131,6 +136,12 @@ export function Publish({
           : 0,
       };
     }
+    if (capabilities.loading || capabilities.error)
+      throw Error(
+        "Wait for current transaction capabilities before publishing.",
+      );
+    if (capabilities.data?.transactionTerms && !draft.releasePolicy)
+      throw Error("Choose a release policy explicitly.");
     validateTaskTerms(draft.dueDate, draft.milestones);
     const milestones = draft.milestones.map((m) => ({
       title: m.title,
@@ -151,6 +162,9 @@ export function Publish({
       description: draft.description,
       category: draft.category,
       rewardCents: amount,
+      ...(capabilities.data?.transactionTerms
+        ? { releasePolicy: draft.releasePolicy }
+        : {}),
       dueDate: draft.dueDate,
       milestones,
     };
@@ -318,6 +332,12 @@ export function Publish({
         {step === 2 && kind === "task" && (
           <>
             <h2 tabIndex={-1}>Set clear milestones</h2>
+            {capabilities.data?.transactionTerms && (
+              <ReleaseChoice
+                value={draft.releasePolicy}
+                onChange={(releasePolicy) => update({ releasePolicy })}
+              />
+            )}
             <p>
               Split {money(dollarsToCents(draft.amount))} into deliverables you
               can review. Individual students and teams can apply.
@@ -462,6 +482,7 @@ export function Publish({
             <p className="cb-price">{money(dollarsToCents(draft.amount))}</p>
             {kind === "task" ? (
               <>
+                <ReleaseDisclosure policy={draft.releasePolicy} />
                 <div className="cb-terms-summary">
                   <strong>Target delivery date</strong>
                   <time dateTime={draft.dueDate}>

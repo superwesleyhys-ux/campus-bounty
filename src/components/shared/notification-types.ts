@@ -1,5 +1,12 @@
 import type { ConversationParticipant } from "./conversation-types";
+type AmendmentContext = {
+  agreementId: string;
+  amendmentId: string;
+  proposalRevision: number;
+  eventId: string | null;
+};
 export type Notification = {
+  amendmentContext?: AmendmentContext | null;
   id: string;
   kind: string;
   templateVersion: 1;
@@ -22,12 +29,15 @@ export type Notification = {
     milestoneRevision: number;
     reviewId: string | null;
   };
-  navigationAnchor: null | {
-    type: "milestone";
-    milestoneId: string;
-    submissionId: string;
-    reviewId: string | null;
-  };
+  navigationAnchor:
+    | null
+    | ({ type: "amendment" } & AmendmentContext)
+    | {
+        type: "milestone";
+        milestoneId: string;
+        submissionId: string;
+        reviewId: string | null;
+      };
   messageContext: null | {
     messageId: string;
     createdAt: string;
@@ -71,6 +81,13 @@ export function notificationHref(item: Notification): string | null {
         ? `/?view=bounties&id=${encodeURIComponent(target.taskId)}#application-${id}`
         : `/?view=workspace&tab=applications&resource=application&id=${id}#application-${id}`;
     case "agreement":
+      if (
+        item.navigationAnchor?.type === "amendment" &&
+        item.navigationAnchor.agreementId === target.id
+      ) {
+        const a = item.navigationAnchor;
+        return `/?view=workspace&tab=agreements&resource=agreement&id=${id}&amendmentId=${encodeURIComponent(a.amendmentId)}&proposalRevision=${a.proposalRevision}#amendment-${encodeURIComponent(a.amendmentId)}-revision-${a.proposalRevision}`;
+      }
       return `/?view=workspace&tab=agreements&resource=agreement&id=${id}${message}${item.navigationAnchor?.type === "milestone" ? `#${item.navigationAnchor.reviewId ? "review" : "submission"}-${encodeURIComponent(item.navigationAnchor.reviewId || item.navigationAnchor.submissionId)}` : ""}`;
     case "order":
       return `/?view=workspace&tab=orders&resource=order&id=${id}${message}${listing}`;
