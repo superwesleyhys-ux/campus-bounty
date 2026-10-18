@@ -1,3 +1,4 @@
+import {preparationSchema,preparationReceiptSchema,recipientPreparationReceiptSchema,participantPaymentSchema} from '../backend/payments/preparation-models.mjs';
 import {feeRevisionProposalSchema,feeRevisionConfirmationSchema,feeRevisionStartSchema,feeRevisionReadSchema,feeRevisionResponses} from '../backend/payments/fee-revision-models.mjs';
 import {feePlanProposalSchema,feePlanConfirmationSchema,feePlanReadSchema,feePlanProposalResponseSchema,feePlanConfirmationResponseSchema} from '../backend/payments/fee-plan-models.mjs';
 import {paymentCommandSchemas} from '../backend/payments/command-models.mjs';
@@ -27,7 +28,14 @@ export function addPaymentOpenapi(spec) {
     function rebase(v){if(!v||typeof v!=='object')return;for(const [k,x] of Object.entries(v)){if(k==='$ref'&&typeof x==='string'&&x.startsWith('#/'))v[k]='#/components/schemas/'+name+x.slice(1);else rebase(x);}}
     rebase(json);spec.components??={};spec.components.schemas??={};spec.components.schemas[name]=json;return {$ref:'#/components/schemas/'+name};
   }
-  const reads = {
+  for(const path of ['/applications/{id}/payment-preparation','/agreements/{id}/payment-preparation','/orders/{id}/payment-preparation','/funding-obligations/{id}/payment-preparation','/agreements/{id}/amendments/{amendmentId}/payment-preparation','/me/payment-account/preparation']) {
+ const op=spec.paths['/api/v1'+path]?.post??spec.paths[path]?.post;if(!op)throw Error('Undocumented preparation '+path);
+ op.requestBody={required:true,content:{'application/json':{schema:component('PaymentPreparationRequest',preparationSchema)}}};
+ op.responses['200']={description:'Actor-bound immutable server-derived preparation receipt',headers:{'X-Campus-Mutation-Receipt':{schema:{type:'string'},description:'SHA-256 of actor, path, idempotency key and parsed body; business receipt identity must also be checked.'}},content:{'application/json':{schema:component(path.includes('/me/')?'RecipientPreparationResponse':'PaymentPreparationResponse',z.strictObject({receipt:path.includes('/me/')?recipientPreparationReceiptSchema:preparationReceiptSchema}))}}};
+ }
+ const reads = {
+ '/agreements/{id}/participant-payment':participantPaymentSchema,
+ '/orders/{id}/participant-payment':participantPaymentSchema,
     "/funding-obligations/{id}/fee-revisions": feeRevisionReadSchema,
     "/agreements/{id}/fee-plans": feePlanReadSchema,
     "/orders/{id}/fee-plans": feePlanReadSchema,

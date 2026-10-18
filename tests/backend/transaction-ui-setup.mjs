@@ -4,6 +4,7 @@ import {digest} from '../../backend/payments/amounts.mjs';
 import {createStripePayments} from '../../backend/adapters/stripe-payments.mjs';
 import {createPaymentWorker} from '../../backend/adapters/payment-worker.mjs';
 export async function configure(f) {
+ await f.owner.query('UPDATE campus.agreement_amendment_settings SET mutations_enabled=true,strict_binding=true WHERE singleton');
  const env={id:key(),platformAccountId:'acct_task2csynthetic',mode:'sandbox'};
  await f.owner.query("INSERT INTO campus.payment_environments VALUES($1,'stripe','sandbox',$2,'Task2C synthetic only','2026-09-30.endive','23.0.0','http://127.0.0.1:3024',true)",[env.id,env.platformAccountId]);
  await legacyInlineProfile(f,env.id);

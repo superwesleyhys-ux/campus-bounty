@@ -122,7 +122,7 @@ export default function SharedCampus({
       <aside className="cb-preview" aria-label="Preview status">
         {preview.data?.enabled
           ? "Local sample accounts · No real university verification, external email or actual payment."
-          : `${local ? "Local development" : "Preview"} · Payments are not enabled.`}
+          : `${local ? "Local development" : "Preview"} · Payment availability and verified status are shown in each transaction.`}
       </aside>
       <header className="cb-header">
         <Link className="cb-brand" href="/?view=bounties">

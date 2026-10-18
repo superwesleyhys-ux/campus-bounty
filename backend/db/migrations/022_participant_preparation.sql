@@ -15,7 +15,7 @@ BEGIN
  IF cfg.id IS NULL OR cfg.digest IS DISTINCT FROM campus.amend_hash(cfg.body) OR cfg.body->>'enabled' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'payment_configuration_required' USING ERRCODE='P0001';END IF;
  SELECT * INTO cp FROM campus.payment_collection_profiles WHERE environment_id=eid ORDER BY version DESC LIMIT 1;
  SELECT * INTO bp FROM campus.payment_billing_profiles WHERE environment_id=eid ORDER BY version DESC LIMIT 1;
- IF cfg.body->>'collectionProfileId' IS DISTINCT FROM cp.id::text OR cfg.body->>'collectionProfileDigest' IS DISTINCT FROM cp.digest OR cfg.body->>'billingProfileId' IS DISTINCT FROM bp.id::text OR bp.billing_mode='unknown' THEN RAISE EXCEPTION 'payment_configuration_stale' USING ERRCODE='P0001';END IF;
+ IF cp.id IS NULL OR bp.id IS NULL OR cfg.body->>'collectionProfileId' IS DISTINCT FROM cp.id::text OR cfg.body->>'collectionProfileDigest' IS DISTINCT FROM cp.digest OR cfg.body->>'billingProfileId' IS DISTINCT FROM bp.id::text OR bp.billing_mode='unknown' THEN RAISE EXCEPTION 'payment_configuration_stale' USING ERRCODE='P0001';END IF;
  IF coalesce(cfg.body->>'kind','') NOT IN('synthetic_product_v1','approved_product_v1') OR (cfg.body->>'kind'='synthetic_product_v1' AND ((SELECT mode FROM campus.payment_environments WHERE id=eid)<>'sandbox' OR cfg.provenance NOT LIKE 'Synthetic:%')) OR coalesce(cfg.body->>'evidenceRef','')='' OR coalesce(cfg.body->>'evidenceDigest','')!~'^[a-f0-9]{64}$' THEN RAISE EXCEPTION 'payment_configuration_evidence_required' USING ERRCODE='P0001';END IF;
  IF NOT campus.transaction_policy_disclosure_valid(cfg.body->'policyTemplate') OR cfg.body#>>'{policyTemplate,feeAdjustment}' IS DISTINCT FROM 'capped_actual_v1' THEN RAISE EXCEPTION 'financial_policy_unresolved' USING ERRCODE='P0001';END IF;
  -- Identical immutable configuration bodies keep their original identity.
@@ -27,6 +27,7 @@ CREATE FUNCTION campus.preparation_fee(cfg jsonb,amount bigint) RETURNS bigint L
 DECLARE rate bigint;fixed bigint;
 BEGIN
  IF jsonb_typeof(cfg#>'{feeEstimate,rateBps}') IS DISTINCT FROM 'number' OR jsonb_typeof(cfg#>'{feeEstimate,fixedCents}') IS DISTINCT FROM 'number' OR jsonb_typeof(cfg#>'{feeEstimate,maximumAmountCents}') IS DISTINCT FROM 'number' OR jsonb_typeof(cfg#>'{feeEstimate,minimumAmountCents}') IS DISTINCT FROM 'number' THEN RAISE EXCEPTION 'fee_estimate_outside_approved_scope' USING ERRCODE='P0001';END IF;
+ IF EXISTS(SELECT 1 FROM jsonb_each(cfg->'feeEstimate') e WHERE e.key IN('rateBps','fixedCents','minimumAmountCents','maximumAmountCents') AND e.value::text !~ '^[0-9]+$') THEN RAISE EXCEPTION 'fee_estimate_outside_approved_scope' USING ERRCODE='P0001';END IF;
  rate:=(cfg#>>'{feeEstimate,rateBps}')::bigint;fixed:=(cfg#>>'{feeEstimate,fixedCents}')::bigint;
  IF cfg#>>'{feeEstimate,kind}' IS DISTINCT FROM 'approved_linear_ceiling_v1' OR rate IS NULL OR rate<0 OR rate>=10000 OR fixed IS NULL OR fixed<0 OR fixed>1000000 OR amount<0 OR amount>100000000 OR amount>(cfg#>>'{feeEstimate,maximumAmountCents}')::bigint OR amount<(cfg#>>'{feeEstimate,minimumAmountCents}')::bigint THEN RAISE EXCEPTION 'fee_estimate_outside_approved_scope' USING ERRCODE='P0001';END IF;
  RETURN fixed+(amount*rate+9999)/10000;

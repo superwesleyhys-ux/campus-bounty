@@ -526,7 +526,7 @@ export function Publish({
               </p>
             )}
             <p className="cb-alert">
-              Payments are not enabled in this preview. Publishing does not
+              Publishing does not
               collect or transfer money.
             </p>
             <p>

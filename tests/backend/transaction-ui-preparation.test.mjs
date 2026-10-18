@@ -24,3 +24,42 @@ test('fresh service application, exact personal consent, preparation, funding qu
   await assert.rejects(f.market.preparePaymentTerms(s.P,'agreement',s.g.id,{approved:true},key()),{code:'invalid_input'});
  }finally{await f.close();}
 });
+
+import {digest} from '../../backend/payments/amounts.mjs';
+import {quoteAgreement,pay,onboard,acceptStage} from './transaction-ui-journeys.mjs';
+async function configuration(f,x,change={}){const next={...x.config,...change};const v=(await f.owner.query('SELECT max(version)+1 v FROM campus.payment_product_configurations WHERE environment_id=$1',[x.env.id])).rows[0].v;await f.owner.query("INSERT INTO campus.payment_product_configurations VALUES($1,$2,$3,$4,$5,'Synthetic: explicit configuration update scenario')",[key(),x.env.id,v,next,digest(next)]);return next;}
+
+test('missing configuration, immutable configuration equality, material repricing before quote, and old never-dispatched quote block',async()=>{
+ const f=await isolated();try{
+  await f.migrateThrough(22);const user=await f.user('No configuration yet');await assert.rejects(f.market.preparePaymentRecipient(user,{},key()),{code:'payments_unavailable'});
+  const x=await configure(f),s=await agreement(f);
+  const p=await f.market.preparePaymentTerms(s.P,'agreement',s.g.id,{},key());await configuration(f,x);
+  assert.equal((await f.market.preparePaymentTerms(s.P,'agreement',s.g.id,{},key())).receipt.policyVersionId,p.receipt.policyVersionId,'identical configuration body does not churn policy');
+  await configuration(f,x,{feeEstimate:{...x.config.feeEstimate,fixedCents:120}});
+  const repriced=await quoteAgreement(f,s);assert.equal(repriced.plan.current.plan.estimatedFeeCents,120);assert.equal(repriced.q.quote.chargeTotalCents,10066);
+  const old=(await f.market.agreement(s.P,s.g.id)).transaction.terms[0];assert.equal(old.plan.lots[0].estimatedProcessorFeeCents,100,'historical allocation unchanged');
+  await configuration(f,x,{feeEstimate:{...x.config.feeEstimate,fixedCents:140}});
+  const current=await f.market.participantPayment(s.P,'agreement',s.g.id);assert.equal(current.configurationChangeBlocker,'payment_configuration_changed_existing_intent');assert(!current.funding.allowedActions.includes('create_payment_attempt'));
+  await assert.rejects(f.market.createPaymentAttempt(s.P,repriced.q.obligationId,repriced.attemptRequest,key()),{code:'payment_configuration_changed_existing_intent'});
+  await assert.rejects(f.market.createAgreementPaymentQuote(s.P,s.g.id,repriced.quoteRequest,key()),{code:'payment_configuration_changed_existing_intent'});
+  assert.equal((await f.owner.query('SELECT count(*)::int n FROM campus.payment_attempts')).rows[0].n,0);
+ }finally{await f.close();}
+});
+
+test('funded team settles exact separate members and current configuration fee supplement uses revision policy',async()=>{
+ const f=await isolated();try{
+  await f.migrateThrough(22);const x=await configure(f);const s=await pay(f,x,await quoteAgreement(f,await agreement(f,{team:true,stages:[5000,5000]})));
+  for(const who of s.members)await onboard(f,x,who);
+  await acceptStage(f,s,0);await x.worker.tick();await x.worker.tick();
+  const funding=await f.market.agreementFunding(s.P,s.g.id);assert(funding.payees.some(p=>p.transferredCents!=='0'));assert.equal(new Set(funding.payees.map(p=>p.memberId)).size,2);assert(funding.payees.some(p=>!p.releaseReady));
+  const extra=await pay(f,x,await quoteAgreement(f,await agreement(f)),300);
+  await configuration(f,x,{feeEstimate:{...x.config.feeEstimate,fixedCents:120}});
+  const prep=await f.market.preparePaymentTerms(extra.P,'fee_revision',extra.q.obligationId,{},key());
+  const before=await f.market.paymentFeeRevision(extra.P,extra.q.obligationId);
+  const revision=await f.market.proposePaymentFeeRevision(extra.P,extra.q.obligationId,{policyVersionId:prep.receipt.policyVersionId,policyDigest:prep.receipt.policyDigest,evidenceDigest:before.evidenceDigest},key());
+  for(const who of [extra.P,...extra.members])await f.market.confirmPaymentFeeRevision(who,revision.receipt.revisionId,{digest:revision.receipt.digest},key());
+  const supplement=await f.market.startPaymentFeeSupplement(extra.P,revision.receipt.revisionId,{digest:revision.receipt.digest,acceptedAmountCents:revision.current.plan.supplementalAmountCents},key());
+  for(let i=0;i<5;i++)await x.worker.dispatch();
+  const status=await f.market.paymentFeeRevision(extra.P,extra.q.obligationId);assert.equal(status.attempt.status,'requires_action');assert.equal(status.attempt.id,supplement.receipt.attemptId);
+ }finally{await f.close();}
+});
