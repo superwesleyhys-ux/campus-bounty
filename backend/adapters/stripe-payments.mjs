@@ -81,6 +81,7 @@ export function createStripePayments({
         {
           mode: "payment",
           ui_mode: "hosted_page",
+          ...(p.paymentMethodTypes?{payment_method_types:p.paymentMethodTypes}:{}),
           line_items: [
             {
               price_data: {

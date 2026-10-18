@@ -134,6 +134,7 @@ export const operationReadSchema = z.strictObject({
     "transfer",
     "refund",
     "fee_restitution",
+    "fee_supplement_checkout",
     "reversal",
     "expire",
     "recipient",

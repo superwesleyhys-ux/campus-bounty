@@ -7,6 +7,10 @@ export async function paymentFixture(f,clock) {
  const env={id:key(),platformAccountId:'acct_fix1',mode:'sandbox'};
  await f.owner.query("INSERT INTO campus.payment_environments VALUES($1,'stripe','sandbox',$2,'Task2B fix1 synthetic','2026-09-30.endive','23.0.0','http://127.0.0.1:3999',true)",[env.id,env.platformAccountId]);
     await (await import('./payment-money-fixture.mjs')).legacyInlineProfile(f,env.id);
+ const collectionBody={kind:'synthetic_usd_card_minimum_v1',presentmentCurrency:'USD',settlementCurrency:'USD',paymentMethodTypes:['card'],minimumChargeCents:50,source:'https://docs.stripe.com/currencies#minimum-and-maximum-charge-amounts',accountEvidenceDigest:digest({synthetic:env.id}),accountEvidenceRef:'Synthetic: fixture-only USD settlement and card support'};
+ const collectionProfile={id:key(),digest:digest(collectionBody),body:collectionBody};
+ await f.owner.query("INSERT INTO campus.payment_collection_profiles(id,environment_id,platform_account_id,version,body,digest,provenance) VALUES($1,$2,$3,1,$4,$5,'Synthetic: isolated USD/card collection premise, no real account activation')",[collectionProfile.id,env.id,env.platformAccountId,JSON.stringify(collectionBody),collectionProfile.digest]);
+ const collectionEstimate=(amount)=>({supplementalCollectionProfileId:collectionProfile.id,supplementalCollectionProfileDigest:collectionProfile.digest,supplementalEstimatedForAmountCents:amount});
  const transport=fakeTransport({now:clock?.now}),adapter=createStripePayments({client:transport.client,environment:env}),worker=createPaymentWorker(f.store,adapter);
  const sql=async(q,args=[])=>(await f.store.workerTx(c=>c.query(q,args))).rows[0]?.result;
  async function prepare(opts={}) {
@@ -28,7 +32,7 @@ export async function paymentFixture(f,clock) {
  async function expected(s){const a=await f.market.paymentAttempt(s.P,s.a.attemptId);return sql('SELECT campus.money_find_attempt($1,$2) AS result',[env.id,a.sessionId]);}
  async function accept(s,index=0){let gd=await f.market.agreement(s.C,s.g.id),m=gd.milestones[index];await f.market.submitMilestone(s.C,m.id,{expectedVersion:m.version,expectedRevision:m.revision,content:'Exact completed work',expectedEffectiveTermsId:s.b.terms_id,expectedEffectiveRevision:s.b.terms_revision},key());gd=await f.market.agreement(s.P,s.g.id);m=gd.milestones[index];await f.market.acceptMilestone(s.P,m.id,{submissionId:m.latest_submission_id,expectedVersion:m.version,expectedRevision:m.revision,submissionTermsId:s.b.terms_id,submissionTermsRevision:s.b.terms_revision,transactionTermsId:s.tt.id,transactionTermsRevision:s.tt.revision},key());}
  async function onboard(user){const conf={configuration:{recipient:{capabilities:{stripe_balance:{stripe_transfers:{requested:true}}}}}};await f.owner.query("INSERT INTO campus.payment_recipient_configurations VALUES($1,$2,1,$3,$4,'Task2B fix1 synthetic recipient configuration')",[env.id,user,JSON.stringify(conf),digest(conf)]);await f.market.onboardPaymentAccount(user,{expectedAccountRevision:0},key());await worker.dispatch();await worker.refreshRecipients();}
- return {env,transport,adapter,worker,sql,prepare,expected,accept,onboard};
+ return {env,transport,adapter,worker,sql,prepare,expected,accept,onboard,collectionProfile,collectionEstimate};
 }
 export async function compensationDecision(f,x,s,amount,version,kind='refund',originalOperationId=null){
  const component=(await f.owner.query('SELECT cp.* FROM campus.funding_component_plans cp JOIN campus.funding_lots l ON l.id=cp.lot_id WHERE l.obligation_id=$1 ORDER BY cp.stage_position LIMIT 1',[s.q.obligationId])).rows[0];

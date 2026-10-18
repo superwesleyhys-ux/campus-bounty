@@ -22,8 +22,10 @@ export function reconcilePayment(
     session.metadata?.quoteDigest !== expected.quoteDigest
   )
     reject();
+  const observation={sessionId:session.id,intentId:intent?.id??null};
   if (!intent)
     return {
+      ...observation,
       status: session.status === "expired" ? "terminal_unpaid" : session.status === "open" ? "requires_action" : "processing",
     };
   if (
@@ -38,10 +40,12 @@ export function reconcilePayment(
     reject();
   if (intent.status !== "succeeded")
     return {
+      ...observation,
       status:
         intent.status === "canceled" && session.status === "expired"
           ? "terminal_unpaid"
-          : "processing",
+          : session.status === "open" && ["requires_action","requires_payment_method","requires_confirmation"].includes(intent.status)
+            ? "requires_action" : "processing",
     };
   if (
     session.payment_status !== "paid" ||

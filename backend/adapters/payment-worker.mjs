@@ -87,7 +87,7 @@ export function createPaymentWorker(store, adapter) {
         );
       } else throw Error("unsupported_operation");
     } catch (error) {
-      const noEffect=['checkout','fee_supplement_checkout'].includes(op.kind)&&Number(op.fence)===1&&error.type==='StripeInvalidRequestError'&&error.statusCode===400&&['parameter_invalid_integer','parameter_unknown','parameter_missing'].includes(error.code);
+      const noEffect=['checkout','fee_supplement_checkout'].includes(op.kind)&&Number(op.fence)===1&&error.type==='StripeInvalidRequestError'&&error.statusCode===400&&['parameter_invalid_integer','parameter_unknown','parameter_missing','amount_too_small'].includes(error.code);
       await query("SELECT campus.money_operation_result($1,$2,$3) AS result", [
         op.id,
         op.fence,

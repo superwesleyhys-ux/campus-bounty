@@ -147,6 +147,7 @@ export function fakeTransport({now=Date.now}={}) {
     transferStatus = "active";
   return {
     sessions,links,calls,
+    setIntentStatus(sessionId,status){const session=sessions.get(sessionId);const id=session.payment_intent??("pi_"+key());session.payment_intent=id;intents.set(id,{id,amount:session.amount_total,currency:"usd",livemode:false,metadata:{attemptId:session.client_reference_id,obligationId:session.metadata.obligationId,sourceDigest:session.metadata.sourceDigest},status});},
     transfers,
     balances,
     refunds,
@@ -259,6 +260,8 @@ export function fakeTransport({now=Date.now}={}) {
         sessions: {
           async create(p, opts) {
             last = { p, opts };calls.push({kind:'checkout',key:opts.idempotencyKey,p:structuredClone(p)});
+            if(p.line_items[0].price_data.unit_amount<50)throw Object.assign(Error('amount_too_small'),{type:'StripeInvalidRequestError',code:'amount_too_small',statusCode:400});
+            if(p.payment_method_types&&JSON.stringify(p.payment_method_types)!==JSON.stringify(['card']))throw Object.assign(Error('unsupported_method'),{type:'StripeInvalidRequestError',code:'parameter_invalid_integer',statusCode:400});
             if(p.expires_at!==undefined && (p.expires_at<now()/1000+1800||p.expires_at>now()/1000+86400))throw Object.assign(Error('invalid_expiry'),{type:'StripeInvalidRequestError',code:'parameter_invalid_integer',statusCode:400});
             if (ids.has(opts.idempotencyKey))
               return sessions.get(ids.get(opts.idempotencyKey));

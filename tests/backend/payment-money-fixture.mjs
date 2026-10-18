@@ -6,7 +6,7 @@ import { localConfig, connectionString } from "../../scripts/backend-local.mjs";
 import { createStore } from "../../backend/db/store.mjs";
 import { createMarket } from "../../backend/modules/market.mjs";
 export const evidence = new URL(
-  "../../.superpowers/sdd/transaction-integration-plan/task-2b-fix1-evidence/",
+  "../../.superpowers/sdd/transaction-integration-plan/task-2b-fix2-evidence/",
   import.meta.url,
 );
 export const key = randomUUID;
@@ -21,14 +21,14 @@ export async function isolated(index = 0) {
   const targets = JSON.parse(
     await readFile(
       new URL(
-        "../../.superpowers/sdd/transaction-integration-plan/task-2b-targets.json",
+        "../../.superpowers/sdd/transaction-integration-plan/task-2b-fix2-targets.json",
         import.meta.url,
       ),
       "utf8",
     ),
   );
-  const database = targets.authorizedNewDatabaseNames[index];
-  assert.ok(database && /^campus_r14_money_[a-f0-9]+$/.test(database));
+  const database = targets.databases[index % targets.databases.length];
+  assert.ok(database && /^campus_r14_moneyfix2_[a-f0-9]+$/.test(database));
   const config = localConfig(),
     admin = new pg.Client({
       connectionString: connectionString(config, "migrator"),

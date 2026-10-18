@@ -28848,179 +28848,472 @@
           "plan": {
             "anyOf": [
               {
-                "type": "object",
-                "properties": {
-                  "format": {
-                    "type": "string",
-                    "const": "fee_reconfirmation_v1"
-                  },
-                  "obligationId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                  },
-                  "originalSourceDigest": {
-                    "type": "string",
-                    "pattern": "^[a-f0-9]{64}$"
-                  },
-                  "originalChargeId": {
-                    "type": "string"
-                  },
-                  "environmentId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                  },
-                  "policyId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                  },
-                  "policyDigest": {
-                    "type": "string",
-                    "pattern": "^[a-f0-9]{64}$"
-                  },
-                  "policyProvenance": {
-                    "type": "string"
-                  },
-                  "revision": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0,
-                    "maximum": 9007199254740991
-                  },
-                  "participants": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "uuid",
-                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                    }
-                  },
-                  "payerId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                  },
-                  "originalPlan": {
-                    "$ref": "#/components/schemas/PaymentRead0/$defs/__schema0"
-                  },
-                  "evidence": {
+                "oneOf": [
+                  {
                     "type": "object",
                     "properties": {
-                      "facts": {
+                      "format": {
+                        "type": "string",
+                        "const": "fee_reconfirmation_v1"
+                      },
+                      "obligationId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "originalSourceDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "originalChargeId": {
+                        "type": "string"
+                      },
+                      "environmentId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "policyId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "policyDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "policyProvenance": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "participants": {
                         "type": "array",
                         "items": {
-                          "type": "object",
-                          "properties": {
-                            "identity": {
-                              "type": "string"
-                            },
-                            "chargeId": {
-                              "type": "string"
-                            },
-                            "balanceId": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            },
-                            "feeCents": {
-                              "anyOf": [
-                                {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 100000000
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "verified": {
-                              "type": "boolean"
-                            }
-                          },
-                          "required": [
-                            "identity",
-                            "chargeId",
-                            "balanceId",
-                            "feeCents",
-                            "verified"
-                          ],
-                          "additionalProperties": false
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                         }
                       },
-                      "totalCents": {
+                      "payerId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "originalPlan": {
+                        "$ref": "#/components/schemas/PaymentRead0/$defs/__schema0"
+                      },
+                      "evidence": {
+                        "type": "object",
+                        "properties": {
+                          "facts": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "identity": {
+                                  "type": "string"
+                                },
+                                "chargeId": {
+                                  "type": "string"
+                                },
+                                "balanceId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "feeCents": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 100000000
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "verified": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "identity",
+                                "chargeId",
+                                "balanceId",
+                                "feeCents",
+                                "verified"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "totalCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "complete": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "facts",
+                          "totalCents",
+                          "complete"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "supplementalEstimatedFeeCents": {
                         "type": "integer",
                         "minimum": 0,
                         "maximum": 100000000
                       },
-                      "complete": {
-                        "type": "boolean"
+                      "maximumTotalFeeCents": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "maximumPayerFeeCents": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "maximumRecipientFeeCents": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "supplementalAmountCents": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "maximumPlan": {
+                        "$ref": "#/components/schemas/PaymentRead0/$defs/__schema1"
+                      },
+                      "restoration": {
+                        "type": "string"
                       }
                     },
                     "required": [
-                      "facts",
-                      "totalCents",
-                      "complete"
+                      "format",
+                      "obligationId",
+                      "originalSourceDigest",
+                      "originalChargeId",
+                      "environmentId",
+                      "policyId",
+                      "policyDigest",
+                      "policyProvenance",
+                      "revision",
+                      "participants",
+                      "payerId",
+                      "originalPlan",
+                      "evidence",
+                      "supplementalEstimatedFeeCents",
+                      "maximumTotalFeeCents",
+                      "maximumPayerFeeCents",
+                      "maximumRecipientFeeCents",
+                      "supplementalAmountCents",
+                      "maximumPlan",
+                      "restoration"
                     ],
                     "additionalProperties": false
                   },
-                  "supplementalEstimatedFeeCents": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 100000000
-                  },
-                  "maximumTotalFeeCents": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 100000000
-                  },
-                  "maximumPayerFeeCents": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 100000000
-                  },
-                  "maximumRecipientFeeCents": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 100000000
-                  },
-                  "supplementalAmountCents": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 100000000
-                  },
-                  "maximumPlan": {
-                    "$ref": "#/components/schemas/PaymentRead0/$defs/__schema1"
-                  },
-                  "restoration": {
-                    "type": "string"
+                  {
+                    "type": "object",
+                    "properties": {
+                      "format": {
+                        "type": "string",
+                        "const": "fee_reconfirmation_v2"
+                      },
+                      "obligationId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "originalSourceDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "originalChargeId": {
+                        "type": "string"
+                      },
+                      "environmentId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "policyId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "policyDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "policyProvenance": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "participants": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        }
+                      },
+                      "payerId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "originalPlan": {
+                        "$ref": "#/components/schemas/PaymentRead0/$defs/__schema0"
+                      },
+                      "evidence": {
+                        "type": "object",
+                        "properties": {
+                          "facts": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "identity": {
+                                  "type": "string"
+                                },
+                                "chargeId": {
+                                  "type": "string"
+                                },
+                                "balanceId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "feeCents": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 100000000
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "verified": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "identity",
+                                "chargeId",
+                                "balanceId",
+                                "feeCents",
+                                "verified"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "totalCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "complete": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "facts",
+                          "totalCents",
+                          "complete"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "supplementalEstimatedFeeCents": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "maximumTotalFeeCents": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "maximumPayerFeeCents": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "maximumRecipientFeeCents": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "supplementalAmountCents": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "maximumPlan": {
+                        "$ref": "#/components/schemas/PaymentRead0/$defs/__schema1"
+                      },
+                      "restoration": {
+                        "type": "string"
+                      },
+                      "reserveShortfallCents": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "minimumChargeCents": {
+                        "type": "number",
+                        "const": 50
+                      },
+                      "excessReserveCents": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "estimatedForAmountCents": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "collection": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "stripe_usd_card_minimum_v1",
+                              "synthetic_usd_card_minimum_v1"
+                            ]
+                          },
+                          "presentmentCurrency": {
+                            "type": "string",
+                            "const": "USD"
+                          },
+                          "settlementCurrency": {
+                            "type": "string",
+                            "const": "USD"
+                          },
+                          "paymentMethodTypes": {
+                            "type": "array",
+                            "prefixItems": [
+                              {
+                                "type": "string",
+                                "const": "card"
+                              }
+                            ],
+                            "items": false,
+                            "minItems": 1,
+                            "maxItems": 1
+                          },
+                          "minimumChargeCents": {
+                            "type": "number",
+                            "const": 50
+                          },
+                          "source": {
+                            "type": "string",
+                            "const": "https://docs.stripe.com/currencies#minimum-and-maximum-charge-amounts"
+                          },
+                          "accountEvidenceDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "accountEvidenceRef": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "profileId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "profileVersion": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "profileDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "environmentId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "platformAccountId": {
+                            "type": "string"
+                          },
+                          "provenance": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "presentmentCurrency",
+                          "settlementCurrency",
+                          "paymentMethodTypes",
+                          "minimumChargeCents",
+                          "source",
+                          "accountEvidenceDigest",
+                          "accountEvidenceRef",
+                          "profileId",
+                          "profileVersion",
+                          "profileDigest",
+                          "environmentId",
+                          "platformAccountId",
+                          "provenance"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "format",
+                      "obligationId",
+                      "originalSourceDigest",
+                      "originalChargeId",
+                      "environmentId",
+                      "policyId",
+                      "policyDigest",
+                      "policyProvenance",
+                      "revision",
+                      "participants",
+                      "payerId",
+                      "originalPlan",
+                      "evidence",
+                      "supplementalEstimatedFeeCents",
+                      "maximumTotalFeeCents",
+                      "maximumPayerFeeCents",
+                      "maximumRecipientFeeCents",
+                      "supplementalAmountCents",
+                      "maximumPlan",
+                      "restoration",
+                      "reserveShortfallCents",
+                      "minimumChargeCents",
+                      "excessReserveCents",
+                      "estimatedForAmountCents",
+                      "collection"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "format",
-                  "obligationId",
-                  "originalSourceDigest",
-                  "originalChargeId",
-                  "environmentId",
-                  "policyId",
-                  "policyDigest",
-                  "policyProvenance",
-                  "revision",
-                  "participants",
-                  "payerId",
-                  "originalPlan",
-                  "evidence",
-                  "supplementalEstimatedFeeCents",
-                  "maximumTotalFeeCents",
-                  "maximumPayerFeeCents",
-                  "maximumRecipientFeeCents",
-                  "supplementalAmountCents",
-                  "maximumPlan",
-                  "restoration"
-                ],
-                "additionalProperties": false
+                ]
               },
               {
                 "type": "null"
@@ -31733,6 +32026,7 @@
               "transfer",
               "refund",
               "fee_restitution",
+              "fee_supplement_checkout",
               "reversal",
               "expire",
               "recipient",
@@ -37546,179 +37840,472 @@
               "plan": {
                 "anyOf": [
                   {
-                    "type": "object",
-                    "properties": {
-                      "format": {
-                        "type": "string",
-                        "const": "fee_reconfirmation_v1"
-                      },
-                      "obligationId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "originalSourceDigest": {
-                        "type": "string",
-                        "pattern": "^[a-f0-9]{64}$"
-                      },
-                      "originalChargeId": {
-                        "type": "string"
-                      },
-                      "environmentId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "policyId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "policyDigest": {
-                        "type": "string",
-                        "pattern": "^[a-f0-9]{64}$"
-                      },
-                      "policyProvenance": {
-                        "type": "string"
-                      },
-                      "revision": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0,
-                        "maximum": 9007199254740991
-                      },
-                      "participants": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        }
-                      },
-                      "payerId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "originalPlan": {
-                        "$ref": "#/components/schemas/FeeRevisionproposeResponse/$defs/__schema0"
-                      },
-                      "evidence": {
+                    "oneOf": [
+                      {
                         "type": "object",
                         "properties": {
-                          "facts": {
+                          "format": {
+                            "type": "string",
+                            "const": "fee_reconfirmation_v1"
+                          },
+                          "obligationId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "originalSourceDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "originalChargeId": {
+                            "type": "string"
+                          },
+                          "environmentId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "policyId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "policyDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "policyProvenance": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "participants": {
                             "type": "array",
                             "items": {
-                              "type": "object",
-                              "properties": {
-                                "identity": {
-                                  "type": "string"
-                                },
-                                "chargeId": {
-                                  "type": "string"
-                                },
-                                "balanceId": {
-                                  "type": [
-                                    "string",
-                                    "null"
-                                  ]
-                                },
-                                "feeCents": {
-                                  "anyOf": [
-                                    {
-                                      "type": "integer",
-                                      "minimum": 0,
-                                      "maximum": 100000000
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "verified": {
-                                  "type": "boolean"
-                                }
-                              },
-                              "required": [
-                                "identity",
-                                "chargeId",
-                                "balanceId",
-                                "feeCents",
-                                "verified"
-                              ],
-                              "additionalProperties": false
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                             }
                           },
-                          "totalCents": {
+                          "payerId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "originalPlan": {
+                            "$ref": "#/components/schemas/FeeRevisionproposeResponse/$defs/__schema0"
+                          },
+                          "evidence": {
+                            "type": "object",
+                            "properties": {
+                              "facts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "identity": {
+                                      "type": "string"
+                                    },
+                                    "chargeId": {
+                                      "type": "string"
+                                    },
+                                    "balanceId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "feeCents": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 100000000
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "verified": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "identity",
+                                    "chargeId",
+                                    "balanceId",
+                                    "feeCents",
+                                    "verified"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "totalCents": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "complete": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "facts",
+                              "totalCents",
+                              "complete"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "supplementalEstimatedFeeCents": {
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 100000000
                           },
-                          "complete": {
-                            "type": "boolean"
+                          "maximumTotalFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumPayerFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumRecipientFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "supplementalAmountCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumPlan": {
+                            "$ref": "#/components/schemas/FeeRevisionproposeResponse/$defs/__schema1"
+                          },
+                          "restoration": {
+                            "type": "string"
                           }
                         },
                         "required": [
-                          "facts",
-                          "totalCents",
-                          "complete"
+                          "format",
+                          "obligationId",
+                          "originalSourceDigest",
+                          "originalChargeId",
+                          "environmentId",
+                          "policyId",
+                          "policyDigest",
+                          "policyProvenance",
+                          "revision",
+                          "participants",
+                          "payerId",
+                          "originalPlan",
+                          "evidence",
+                          "supplementalEstimatedFeeCents",
+                          "maximumTotalFeeCents",
+                          "maximumPayerFeeCents",
+                          "maximumRecipientFeeCents",
+                          "supplementalAmountCents",
+                          "maximumPlan",
+                          "restoration"
                         ],
                         "additionalProperties": false
                       },
-                      "supplementalEstimatedFeeCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "maximumTotalFeeCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "maximumPayerFeeCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "maximumRecipientFeeCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "supplementalAmountCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "maximumPlan": {
-                        "$ref": "#/components/schemas/FeeRevisionproposeResponse/$defs/__schema1"
-                      },
-                      "restoration": {
-                        "type": "string"
+                      {
+                        "type": "object",
+                        "properties": {
+                          "format": {
+                            "type": "string",
+                            "const": "fee_reconfirmation_v2"
+                          },
+                          "obligationId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "originalSourceDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "originalChargeId": {
+                            "type": "string"
+                          },
+                          "environmentId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "policyId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "policyDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "policyProvenance": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "participants": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "payerId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "originalPlan": {
+                            "$ref": "#/components/schemas/FeeRevisionproposeResponse/$defs/__schema0"
+                          },
+                          "evidence": {
+                            "type": "object",
+                            "properties": {
+                              "facts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "identity": {
+                                      "type": "string"
+                                    },
+                                    "chargeId": {
+                                      "type": "string"
+                                    },
+                                    "balanceId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "feeCents": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 100000000
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "verified": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "identity",
+                                    "chargeId",
+                                    "balanceId",
+                                    "feeCents",
+                                    "verified"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "totalCents": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "complete": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "facts",
+                              "totalCents",
+                              "complete"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "supplementalEstimatedFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumTotalFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumPayerFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumRecipientFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "supplementalAmountCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumPlan": {
+                            "$ref": "#/components/schemas/FeeRevisionproposeResponse/$defs/__schema1"
+                          },
+                          "restoration": {
+                            "type": "string"
+                          },
+                          "reserveShortfallCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "minimumChargeCents": {
+                            "type": "number",
+                            "const": 50
+                          },
+                          "excessReserveCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "estimatedForAmountCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "collection": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "stripe_usd_card_minimum_v1",
+                                  "synthetic_usd_card_minimum_v1"
+                                ]
+                              },
+                              "presentmentCurrency": {
+                                "type": "string",
+                                "const": "USD"
+                              },
+                              "settlementCurrency": {
+                                "type": "string",
+                                "const": "USD"
+                              },
+                              "paymentMethodTypes": {
+                                "type": "array",
+                                "prefixItems": [
+                                  {
+                                    "type": "string",
+                                    "const": "card"
+                                  }
+                                ],
+                                "items": false,
+                                "minItems": 1,
+                                "maxItems": 1
+                              },
+                              "minimumChargeCents": {
+                                "type": "number",
+                                "const": 50
+                              },
+                              "source": {
+                                "type": "string",
+                                "const": "https://docs.stripe.com/currencies#minimum-and-maximum-charge-amounts"
+                              },
+                              "accountEvidenceDigest": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "accountEvidenceRef": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "profileId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "profileVersion": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "profileDigest": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "environmentId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "provenance": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "presentmentCurrency",
+                              "settlementCurrency",
+                              "paymentMethodTypes",
+                              "minimumChargeCents",
+                              "source",
+                              "accountEvidenceDigest",
+                              "accountEvidenceRef",
+                              "profileId",
+                              "profileVersion",
+                              "profileDigest",
+                              "environmentId",
+                              "platformAccountId",
+                              "provenance"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "format",
+                          "obligationId",
+                          "originalSourceDigest",
+                          "originalChargeId",
+                          "environmentId",
+                          "policyId",
+                          "policyDigest",
+                          "policyProvenance",
+                          "revision",
+                          "participants",
+                          "payerId",
+                          "originalPlan",
+                          "evidence",
+                          "supplementalEstimatedFeeCents",
+                          "maximumTotalFeeCents",
+                          "maximumPayerFeeCents",
+                          "maximumRecipientFeeCents",
+                          "supplementalAmountCents",
+                          "maximumPlan",
+                          "restoration",
+                          "reserveShortfallCents",
+                          "minimumChargeCents",
+                          "excessReserveCents",
+                          "estimatedForAmountCents",
+                          "collection"
+                        ],
+                        "additionalProperties": false
                       }
-                    },
-                    "required": [
-                      "format",
-                      "obligationId",
-                      "originalSourceDigest",
-                      "originalChargeId",
-                      "environmentId",
-                      "policyId",
-                      "policyDigest",
-                      "policyProvenance",
-                      "revision",
-                      "participants",
-                      "payerId",
-                      "originalPlan",
-                      "evidence",
-                      "supplementalEstimatedFeeCents",
-                      "maximumTotalFeeCents",
-                      "maximumPayerFeeCents",
-                      "maximumRecipientFeeCents",
-                      "supplementalAmountCents",
-                      "maximumPlan",
-                      "restoration"
-                    ],
-                    "additionalProperties": false
+                    ]
                   },
                   {
                     "type": "null"
@@ -38116,179 +38703,472 @@
               "plan": {
                 "anyOf": [
                   {
-                    "type": "object",
-                    "properties": {
-                      "format": {
-                        "type": "string",
-                        "const": "fee_reconfirmation_v1"
-                      },
-                      "obligationId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "originalSourceDigest": {
-                        "type": "string",
-                        "pattern": "^[a-f0-9]{64}$"
-                      },
-                      "originalChargeId": {
-                        "type": "string"
-                      },
-                      "environmentId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "policyId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "policyDigest": {
-                        "type": "string",
-                        "pattern": "^[a-f0-9]{64}$"
-                      },
-                      "policyProvenance": {
-                        "type": "string"
-                      },
-                      "revision": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0,
-                        "maximum": 9007199254740991
-                      },
-                      "participants": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        }
-                      },
-                      "payerId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "originalPlan": {
-                        "$ref": "#/components/schemas/FeeRevisionconfirmResponse/$defs/__schema0"
-                      },
-                      "evidence": {
+                    "oneOf": [
+                      {
                         "type": "object",
                         "properties": {
-                          "facts": {
+                          "format": {
+                            "type": "string",
+                            "const": "fee_reconfirmation_v1"
+                          },
+                          "obligationId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "originalSourceDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "originalChargeId": {
+                            "type": "string"
+                          },
+                          "environmentId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "policyId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "policyDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "policyProvenance": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "participants": {
                             "type": "array",
                             "items": {
-                              "type": "object",
-                              "properties": {
-                                "identity": {
-                                  "type": "string"
-                                },
-                                "chargeId": {
-                                  "type": "string"
-                                },
-                                "balanceId": {
-                                  "type": [
-                                    "string",
-                                    "null"
-                                  ]
-                                },
-                                "feeCents": {
-                                  "anyOf": [
-                                    {
-                                      "type": "integer",
-                                      "minimum": 0,
-                                      "maximum": 100000000
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "verified": {
-                                  "type": "boolean"
-                                }
-                              },
-                              "required": [
-                                "identity",
-                                "chargeId",
-                                "balanceId",
-                                "feeCents",
-                                "verified"
-                              ],
-                              "additionalProperties": false
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                             }
                           },
-                          "totalCents": {
+                          "payerId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "originalPlan": {
+                            "$ref": "#/components/schemas/FeeRevisionconfirmResponse/$defs/__schema0"
+                          },
+                          "evidence": {
+                            "type": "object",
+                            "properties": {
+                              "facts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "identity": {
+                                      "type": "string"
+                                    },
+                                    "chargeId": {
+                                      "type": "string"
+                                    },
+                                    "balanceId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "feeCents": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 100000000
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "verified": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "identity",
+                                    "chargeId",
+                                    "balanceId",
+                                    "feeCents",
+                                    "verified"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "totalCents": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "complete": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "facts",
+                              "totalCents",
+                              "complete"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "supplementalEstimatedFeeCents": {
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 100000000
                           },
-                          "complete": {
-                            "type": "boolean"
+                          "maximumTotalFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumPayerFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumRecipientFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "supplementalAmountCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumPlan": {
+                            "$ref": "#/components/schemas/FeeRevisionconfirmResponse/$defs/__schema1"
+                          },
+                          "restoration": {
+                            "type": "string"
                           }
                         },
                         "required": [
-                          "facts",
-                          "totalCents",
-                          "complete"
+                          "format",
+                          "obligationId",
+                          "originalSourceDigest",
+                          "originalChargeId",
+                          "environmentId",
+                          "policyId",
+                          "policyDigest",
+                          "policyProvenance",
+                          "revision",
+                          "participants",
+                          "payerId",
+                          "originalPlan",
+                          "evidence",
+                          "supplementalEstimatedFeeCents",
+                          "maximumTotalFeeCents",
+                          "maximumPayerFeeCents",
+                          "maximumRecipientFeeCents",
+                          "supplementalAmountCents",
+                          "maximumPlan",
+                          "restoration"
                         ],
                         "additionalProperties": false
                       },
-                      "supplementalEstimatedFeeCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "maximumTotalFeeCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "maximumPayerFeeCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "maximumRecipientFeeCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "supplementalAmountCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "maximumPlan": {
-                        "$ref": "#/components/schemas/FeeRevisionconfirmResponse/$defs/__schema1"
-                      },
-                      "restoration": {
-                        "type": "string"
+                      {
+                        "type": "object",
+                        "properties": {
+                          "format": {
+                            "type": "string",
+                            "const": "fee_reconfirmation_v2"
+                          },
+                          "obligationId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "originalSourceDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "originalChargeId": {
+                            "type": "string"
+                          },
+                          "environmentId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "policyId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "policyDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "policyProvenance": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "participants": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "payerId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "originalPlan": {
+                            "$ref": "#/components/schemas/FeeRevisionconfirmResponse/$defs/__schema0"
+                          },
+                          "evidence": {
+                            "type": "object",
+                            "properties": {
+                              "facts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "identity": {
+                                      "type": "string"
+                                    },
+                                    "chargeId": {
+                                      "type": "string"
+                                    },
+                                    "balanceId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "feeCents": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 100000000
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "verified": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "identity",
+                                    "chargeId",
+                                    "balanceId",
+                                    "feeCents",
+                                    "verified"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "totalCents": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "complete": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "facts",
+                              "totalCents",
+                              "complete"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "supplementalEstimatedFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumTotalFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumPayerFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumRecipientFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "supplementalAmountCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumPlan": {
+                            "$ref": "#/components/schemas/FeeRevisionconfirmResponse/$defs/__schema1"
+                          },
+                          "restoration": {
+                            "type": "string"
+                          },
+                          "reserveShortfallCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "minimumChargeCents": {
+                            "type": "number",
+                            "const": 50
+                          },
+                          "excessReserveCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "estimatedForAmountCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "collection": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "stripe_usd_card_minimum_v1",
+                                  "synthetic_usd_card_minimum_v1"
+                                ]
+                              },
+                              "presentmentCurrency": {
+                                "type": "string",
+                                "const": "USD"
+                              },
+                              "settlementCurrency": {
+                                "type": "string",
+                                "const": "USD"
+                              },
+                              "paymentMethodTypes": {
+                                "type": "array",
+                                "prefixItems": [
+                                  {
+                                    "type": "string",
+                                    "const": "card"
+                                  }
+                                ],
+                                "items": false,
+                                "minItems": 1,
+                                "maxItems": 1
+                              },
+                              "minimumChargeCents": {
+                                "type": "number",
+                                "const": 50
+                              },
+                              "source": {
+                                "type": "string",
+                                "const": "https://docs.stripe.com/currencies#minimum-and-maximum-charge-amounts"
+                              },
+                              "accountEvidenceDigest": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "accountEvidenceRef": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "profileId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "profileVersion": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "profileDigest": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "environmentId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "provenance": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "presentmentCurrency",
+                              "settlementCurrency",
+                              "paymentMethodTypes",
+                              "minimumChargeCents",
+                              "source",
+                              "accountEvidenceDigest",
+                              "accountEvidenceRef",
+                              "profileId",
+                              "profileVersion",
+                              "profileDigest",
+                              "environmentId",
+                              "platformAccountId",
+                              "provenance"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "format",
+                          "obligationId",
+                          "originalSourceDigest",
+                          "originalChargeId",
+                          "environmentId",
+                          "policyId",
+                          "policyDigest",
+                          "policyProvenance",
+                          "revision",
+                          "participants",
+                          "payerId",
+                          "originalPlan",
+                          "evidence",
+                          "supplementalEstimatedFeeCents",
+                          "maximumTotalFeeCents",
+                          "maximumPayerFeeCents",
+                          "maximumRecipientFeeCents",
+                          "supplementalAmountCents",
+                          "maximumPlan",
+                          "restoration",
+                          "reserveShortfallCents",
+                          "minimumChargeCents",
+                          "excessReserveCents",
+                          "estimatedForAmountCents",
+                          "collection"
+                        ],
+                        "additionalProperties": false
                       }
-                    },
-                    "required": [
-                      "format",
-                      "obligationId",
-                      "originalSourceDigest",
-                      "originalChargeId",
-                      "environmentId",
-                      "policyId",
-                      "policyDigest",
-                      "policyProvenance",
-                      "revision",
-                      "participants",
-                      "payerId",
-                      "originalPlan",
-                      "evidence",
-                      "supplementalEstimatedFeeCents",
-                      "maximumTotalFeeCents",
-                      "maximumPayerFeeCents",
-                      "maximumRecipientFeeCents",
-                      "supplementalAmountCents",
-                      "maximumPlan",
-                      "restoration"
-                    ],
-                    "additionalProperties": false
+                    ]
                   },
                   {
                     "type": "null"
@@ -38700,179 +39580,472 @@
               "plan": {
                 "anyOf": [
                   {
-                    "type": "object",
-                    "properties": {
-                      "format": {
-                        "type": "string",
-                        "const": "fee_reconfirmation_v1"
-                      },
-                      "obligationId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "originalSourceDigest": {
-                        "type": "string",
-                        "pattern": "^[a-f0-9]{64}$"
-                      },
-                      "originalChargeId": {
-                        "type": "string"
-                      },
-                      "environmentId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "policyId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "policyDigest": {
-                        "type": "string",
-                        "pattern": "^[a-f0-9]{64}$"
-                      },
-                      "policyProvenance": {
-                        "type": "string"
-                      },
-                      "revision": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0,
-                        "maximum": 9007199254740991
-                      },
-                      "participants": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        }
-                      },
-                      "payerId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "originalPlan": {
-                        "$ref": "#/components/schemas/FeeRevisionstartResponse/$defs/__schema0"
-                      },
-                      "evidence": {
+                    "oneOf": [
+                      {
                         "type": "object",
                         "properties": {
-                          "facts": {
+                          "format": {
+                            "type": "string",
+                            "const": "fee_reconfirmation_v1"
+                          },
+                          "obligationId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "originalSourceDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "originalChargeId": {
+                            "type": "string"
+                          },
+                          "environmentId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "policyId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "policyDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "policyProvenance": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "participants": {
                             "type": "array",
                             "items": {
-                              "type": "object",
-                              "properties": {
-                                "identity": {
-                                  "type": "string"
-                                },
-                                "chargeId": {
-                                  "type": "string"
-                                },
-                                "balanceId": {
-                                  "type": [
-                                    "string",
-                                    "null"
-                                  ]
-                                },
-                                "feeCents": {
-                                  "anyOf": [
-                                    {
-                                      "type": "integer",
-                                      "minimum": 0,
-                                      "maximum": 100000000
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "verified": {
-                                  "type": "boolean"
-                                }
-                              },
-                              "required": [
-                                "identity",
-                                "chargeId",
-                                "balanceId",
-                                "feeCents",
-                                "verified"
-                              ],
-                              "additionalProperties": false
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                             }
                           },
-                          "totalCents": {
+                          "payerId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "originalPlan": {
+                            "$ref": "#/components/schemas/FeeRevisionstartResponse/$defs/__schema0"
+                          },
+                          "evidence": {
+                            "type": "object",
+                            "properties": {
+                              "facts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "identity": {
+                                      "type": "string"
+                                    },
+                                    "chargeId": {
+                                      "type": "string"
+                                    },
+                                    "balanceId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "feeCents": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 100000000
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "verified": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "identity",
+                                    "chargeId",
+                                    "balanceId",
+                                    "feeCents",
+                                    "verified"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "totalCents": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "complete": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "facts",
+                              "totalCents",
+                              "complete"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "supplementalEstimatedFeeCents": {
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 100000000
                           },
-                          "complete": {
-                            "type": "boolean"
+                          "maximumTotalFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumPayerFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumRecipientFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "supplementalAmountCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumPlan": {
+                            "$ref": "#/components/schemas/FeeRevisionstartResponse/$defs/__schema1"
+                          },
+                          "restoration": {
+                            "type": "string"
                           }
                         },
                         "required": [
-                          "facts",
-                          "totalCents",
-                          "complete"
+                          "format",
+                          "obligationId",
+                          "originalSourceDigest",
+                          "originalChargeId",
+                          "environmentId",
+                          "policyId",
+                          "policyDigest",
+                          "policyProvenance",
+                          "revision",
+                          "participants",
+                          "payerId",
+                          "originalPlan",
+                          "evidence",
+                          "supplementalEstimatedFeeCents",
+                          "maximumTotalFeeCents",
+                          "maximumPayerFeeCents",
+                          "maximumRecipientFeeCents",
+                          "supplementalAmountCents",
+                          "maximumPlan",
+                          "restoration"
                         ],
                         "additionalProperties": false
                       },
-                      "supplementalEstimatedFeeCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "maximumTotalFeeCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "maximumPayerFeeCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "maximumRecipientFeeCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "supplementalAmountCents": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100000000
-                      },
-                      "maximumPlan": {
-                        "$ref": "#/components/schemas/FeeRevisionstartResponse/$defs/__schema1"
-                      },
-                      "restoration": {
-                        "type": "string"
+                      {
+                        "type": "object",
+                        "properties": {
+                          "format": {
+                            "type": "string",
+                            "const": "fee_reconfirmation_v2"
+                          },
+                          "obligationId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "originalSourceDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "originalChargeId": {
+                            "type": "string"
+                          },
+                          "environmentId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "policyId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "policyDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "policyProvenance": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "participants": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "payerId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "originalPlan": {
+                            "$ref": "#/components/schemas/FeeRevisionstartResponse/$defs/__schema0"
+                          },
+                          "evidence": {
+                            "type": "object",
+                            "properties": {
+                              "facts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "identity": {
+                                      "type": "string"
+                                    },
+                                    "chargeId": {
+                                      "type": "string"
+                                    },
+                                    "balanceId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "feeCents": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 100000000
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "verified": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "identity",
+                                    "chargeId",
+                                    "balanceId",
+                                    "feeCents",
+                                    "verified"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "totalCents": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "complete": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "facts",
+                              "totalCents",
+                              "complete"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "supplementalEstimatedFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumTotalFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumPayerFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumRecipientFeeCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "supplementalAmountCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "maximumPlan": {
+                            "$ref": "#/components/schemas/FeeRevisionstartResponse/$defs/__schema1"
+                          },
+                          "restoration": {
+                            "type": "string"
+                          },
+                          "reserveShortfallCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "minimumChargeCents": {
+                            "type": "number",
+                            "const": 50
+                          },
+                          "excessReserveCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "estimatedForAmountCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "collection": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "stripe_usd_card_minimum_v1",
+                                  "synthetic_usd_card_minimum_v1"
+                                ]
+                              },
+                              "presentmentCurrency": {
+                                "type": "string",
+                                "const": "USD"
+                              },
+                              "settlementCurrency": {
+                                "type": "string",
+                                "const": "USD"
+                              },
+                              "paymentMethodTypes": {
+                                "type": "array",
+                                "prefixItems": [
+                                  {
+                                    "type": "string",
+                                    "const": "card"
+                                  }
+                                ],
+                                "items": false,
+                                "minItems": 1,
+                                "maxItems": 1
+                              },
+                              "minimumChargeCents": {
+                                "type": "number",
+                                "const": 50
+                              },
+                              "source": {
+                                "type": "string",
+                                "const": "https://docs.stripe.com/currencies#minimum-and-maximum-charge-amounts"
+                              },
+                              "accountEvidenceDigest": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "accountEvidenceRef": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "profileId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "profileVersion": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "profileDigest": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "environmentId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "provenance": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "presentmentCurrency",
+                              "settlementCurrency",
+                              "paymentMethodTypes",
+                              "minimumChargeCents",
+                              "source",
+                              "accountEvidenceDigest",
+                              "accountEvidenceRef",
+                              "profileId",
+                              "profileVersion",
+                              "profileDigest",
+                              "environmentId",
+                              "platformAccountId",
+                              "provenance"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "format",
+                          "obligationId",
+                          "originalSourceDigest",
+                          "originalChargeId",
+                          "environmentId",
+                          "policyId",
+                          "policyDigest",
+                          "policyProvenance",
+                          "revision",
+                          "participants",
+                          "payerId",
+                          "originalPlan",
+                          "evidence",
+                          "supplementalEstimatedFeeCents",
+                          "maximumTotalFeeCents",
+                          "maximumPayerFeeCents",
+                          "maximumRecipientFeeCents",
+                          "supplementalAmountCents",
+                          "maximumPlan",
+                          "restoration",
+                          "reserveShortfallCents",
+                          "minimumChargeCents",
+                          "excessReserveCents",
+                          "estimatedForAmountCents",
+                          "collection"
+                        ],
+                        "additionalProperties": false
                       }
-                    },
-                    "required": [
-                      "format",
-                      "obligationId",
-                      "originalSourceDigest",
-                      "originalChargeId",
-                      "environmentId",
-                      "policyId",
-                      "policyDigest",
-                      "policyProvenance",
-                      "revision",
-                      "participants",
-                      "payerId",
-                      "originalPlan",
-                      "evidence",
-                      "supplementalEstimatedFeeCents",
-                      "maximumTotalFeeCents",
-                      "maximumPayerFeeCents",
-                      "maximumRecipientFeeCents",
-                      "supplementalAmountCents",
-                      "maximumPlan",
-                      "restoration"
-                    ],
-                    "additionalProperties": false
+                    ]
                   },
                   {
                     "type": "null"
