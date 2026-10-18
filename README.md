@@ -10,9 +10,9 @@ This repository now includes in-progress transaction and agreement-change work. 
 
 ### Latest backend checkpoint — 2026-10-18
 
-The independent Astra High amendment-money review returned **Issues found / Needs fixes**. Three Important defects are in the first repair round: incomplete foreign cash coverage, incorrect blocking of unrelated supplemental fees/empty reports, and UUID metadata for integer revision paths. See [current development status](docs/github-development-status.md) for the precise boundary.
+The scoped Astra High amendment-money fix1 re-review returned **Spec PASS / Quality PASS**: all three Important findings were addressed, with no new finding. Root accepted this bounded backend/API increment. Final16 focused tests, typecheck and isolated build passed on the same477-file source snapshot; the original failing counterexamples and previous46-test evidence remain separately attributed.
 
-The preceding frozen snapshot passed46 checks, type checking and isolated build; these results do not cover the identified counterexamples or certify evolving repair code. Synthetic provider/closure evidence is not real payment acceptance. Complete payment/onboarding UI, ordinary transaction policy preparation, real email/login/provider integration and production deployment remain unfinished. No source has been deployed.
+Task2C is now implementing ordinary transaction preparation and complete participant payment, recipient onboarding, recovery and settlement pages. These visible flows are not yet accepted. Synthetic provider/closure evidence is not real payment acceptance. Real email/login/provider integration, bank payout and production deployment remain unfinished. No source has been deployed. See [current development status](docs/github-development-status.md) for the exact boundary.
 
 ## 已接通的主要流程
 
