@@ -31583,6 +31583,92 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
+          "payerId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "feeReview": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "revisionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "isCurrentEvidence": {
+                    "type": "boolean"
+                  },
+                  "settledActualFeeCents": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "initialQuoteBlockers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "financial_policy_unresolved",
+                        "quote_changed"
+                      ]
+                    }
+                  },
+                  "restitutions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "original",
+                            "supplemental"
+                          ]
+                        },
+                        "amountCents": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "status": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "amountCents",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "revisionId",
+                  "state",
+                  "isCurrentEvidence",
+                  "settledActualFeeCents",
+                  "initialQuoteBlockers",
+                  "restitutions"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "paymentEnabled": {
             "type": "boolean"
           },
@@ -32589,25 +32675,91 @@
             "anyOf": [
               {
                 "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
-                "additionalProperties": {
-                  "type": "object",
-                  "properties": {
-                    "title": {
-                      "type": "string"
-                    },
-                    "description": {
-                      "type": "string"
-                    }
+                "properties": {
+                  "format": {
+                    "type": "string",
+                    "const": "transaction_policy_disclosure_v1"
                   },
-                  "required": [
-                    "title",
-                    "description"
-                  ],
-                  "additionalProperties": false
-                }
+                  "feeAdjustment": {
+                    "type": "object",
+                    "properties": {
+                      "policyId": {
+                        "type": "string"
+                      },
+                      "version": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "policyId",
+                      "version",
+                      "title",
+                      "description"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "tax": {
+                    "type": "object",
+                    "properties": {
+                      "policyId": {
+                        "type": "string"
+                      },
+                      "version": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "policyId",
+                      "version",
+                      "title",
+                      "description"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "refund": {
+                    "type": "object",
+                    "properties": {
+                      "policyId": {
+                        "type": "string"
+                      },
+                      "version": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "policyId",
+                      "version",
+                      "title",
+                      "description"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "format",
+                  "feeAdjustment",
+                  "tax",
+                  "refund"
+                ],
+                "additionalProperties": false
               },
               {
                 "type": "null"
@@ -32862,6 +33014,8 @@
         "required": [
           "kind",
           "resourceId",
+          "payerId",
+          "feeReview",
           "paymentEnabled",
           "funding",
           "feePlan",
@@ -33018,6 +33172,92 @@
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "payerId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "feeReview": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "revisionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "isCurrentEvidence": {
+                    "type": "boolean"
+                  },
+                  "settledActualFeeCents": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "initialQuoteBlockers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "financial_policy_unresolved",
+                        "quote_changed"
+                      ]
+                    }
+                  },
+                  "restitutions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "original",
+                            "supplemental"
+                          ]
+                        },
+                        "amountCents": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "status": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "amountCents",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "revisionId",
+                  "state",
+                  "isCurrentEvidence",
+                  "settledActualFeeCents",
+                  "initialQuoteBlockers",
+                  "restitutions"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "paymentEnabled": {
             "type": "boolean"
@@ -34025,25 +34265,91 @@
             "anyOf": [
               {
                 "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
-                "additionalProperties": {
-                  "type": "object",
-                  "properties": {
-                    "title": {
-                      "type": "string"
-                    },
-                    "description": {
-                      "type": "string"
-                    }
+                "properties": {
+                  "format": {
+                    "type": "string",
+                    "const": "transaction_policy_disclosure_v1"
                   },
-                  "required": [
-                    "title",
-                    "description"
-                  ],
-                  "additionalProperties": false
-                }
+                  "feeAdjustment": {
+                    "type": "object",
+                    "properties": {
+                      "policyId": {
+                        "type": "string"
+                      },
+                      "version": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "policyId",
+                      "version",
+                      "title",
+                      "description"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "tax": {
+                    "type": "object",
+                    "properties": {
+                      "policyId": {
+                        "type": "string"
+                      },
+                      "version": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "policyId",
+                      "version",
+                      "title",
+                      "description"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "refund": {
+                    "type": "object",
+                    "properties": {
+                      "policyId": {
+                        "type": "string"
+                      },
+                      "version": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "policyId",
+                      "version",
+                      "title",
+                      "description"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "format",
+                  "feeAdjustment",
+                  "tax",
+                  "refund"
+                ],
+                "additionalProperties": false
               },
               {
                 "type": "null"
@@ -34298,6 +34604,8 @@
         "required": [
           "kind",
           "resourceId",
+          "payerId",
+          "feeReview",
           "paymentEnabled",
           "funding",
           "feePlan",
@@ -37619,6 +37927,9 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
+          "paymentEnabled": {
+            "type": "boolean"
+          },
           "requirements": {
             "type": "object",
             "properties": {
@@ -41011,6 +41322,9 @@
           "current": {
             "type": "object",
             "properties": {
+              "paymentEnabled": {
+                "type": "boolean"
+              },
               "requirements": {
                 "type": "object",
                 "properties": {
@@ -46187,6 +46501,9 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
+          "paymentEnabled": {
+            "type": "boolean"
+          },
           "agreementId": {
             "type": "string",
             "format": "uuid",
@@ -47690,6 +48007,9 @@
           "current": {
             "type": "object",
             "properties": {
+              "paymentEnabled": {
+                "type": "boolean"
+              },
               "agreementId": {
                 "type": "string",
                 "format": "uuid",
@@ -49205,6 +49525,9 @@
           "current": {
             "type": "object",
             "properties": {
+              "paymentEnabled": {
+                "type": "boolean"
+              },
               "agreementId": {
                 "type": "string",
                 "format": "uuid",
@@ -50730,6 +51053,9 @@
           "current": {
             "type": "object",
             "properties": {
+              "paymentEnabled": {
+                "type": "boolean"
+              },
               "agreementId": {
                 "type": "string",
                 "format": "uuid",
@@ -52255,6 +52581,9 @@
           "current": {
             "type": "object",
             "properties": {
+              "paymentEnabled": {
+                "type": "boolean"
+              },
               "agreementId": {
                 "type": "string",
                 "format": "uuid",
@@ -53825,6 +54154,9 @@
           "current": {
             "type": "object",
             "properties": {
+              "paymentEnabled": {
+                "type": "boolean"
+              },
               "agreementId": {
                 "type": "string",
                 "format": "uuid",
@@ -55340,6 +55672,9 @@
           "current": {
             "type": "object",
             "properties": {
+              "paymentEnabled": {
+                "type": "boolean"
+              },
               "agreementId": {
                 "type": "string",
                 "format": "uuid",

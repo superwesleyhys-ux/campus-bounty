@@ -1,16 +1,162 @@
 "use client";
-import {useEffect,useRef,useState} from 'react';
-import {request} from './api';
-import {paymentIdentity,usePaymentRead,usePaymentRequest} from './payment-request';
-import {ResourceState} from './ui';
-import {reason,type MoneyOperation} from './payment-model';
-import {PaymentRecovery,HostedAction} from './payment-presentation';
-type PaymentAccount={paymentEnabled?:boolean;revision:number;transferCapability:string;payoutCapability:string;observedAt:string|null;requirements?:{pendingCount:number;status:string};operation?:MoneyOperation|null;configurationBlocker?:string|null;dashboardAvailable?:boolean;payoutObservations:{payoutId:string;status:string;observedAt:string}[]};
-export function PaymentAccountPanel({account}:{account:string}){
- const r=usePaymentRead<PaymentAccount>(account,'me/payment-account'),c=usePaymentRequest(account,'recipient');const d=r.data;const preflight=useRef<AbortController|null>(null);const [preparing,setPreparing]=useState(false),[readError,setReadError]=useState<Error|null>(null);
- useEffect(()=>()=>preflight.current?.abort(),[account]);
- useEffect(()=>{const fn=()=>r.reload();window.addEventListener('focus',fn);return ()=>window.removeEventListener('focus',fn);},[account]);
- async function prepare(){if(await c.send('me/payment-account/preparation',{},{userId:account}))r.reload();}
- async function onboard(){preflight.current?.abort();const ctrl=new AbortController();preflight.current=ctrl;setPreparing(true);setReadError(null);try{await paymentIdentity(account,ctrl.signal);const current=await request<PaymentAccount>('me/payment-account',{signal:ctrl.signal});await paymentIdentity(account,ctrl.signal);await c.send('me/payment-account/onboarding',{expectedAccountRevision:current.revision},{status:'queued'},['operationId']);if(!ctrl.signal.aborted)r.reload();}catch(e){if(!ctrl.signal.aborted)setReadError(e as Error);}finally{if(!ctrl.signal.aborted)setPreparing(false);}}
- return <section className="cb-panel"><h2>Your payment account</h2><p>Enter bank and identity details only on the payment provider’s hosted page. Campus Bounty does not collect these documents here.</p>{!d?<ResourceState {...r}/>:<><p>Transfers to your payment account: <strong>{reason(d.transferCapability)}</strong>. Bank payouts: <strong>{reason(d.payoutCapability)}</strong>.</p><p>Requirements: {reason(d.requirements?.status??'unknown')}{d.requirements?.status!=='unknown'&&` · ${d.requirements?.pendingCount??0} pending`}. {d.observedAt?`Last checked ${new Date(d.observedAt).toLocaleString()}.`:'No provider observation yet.'}</p>{d.configurationBlocker&&<p className="cb-alert">{reason(d.configurationBlocker)}</p>}{d.operation&&<p>Latest {reason(d.operation.kind)} request: {reason(d.operation.status)}. A completed request or redirect does not prove account verification.</p>}{d.revision===0&&!d.operation&&<button className="cb-button" disabled={d.paymentEnabled===false||preparing||c.blocked||!!d.configurationBlocker} onClick={()=>void prepare()}>Prepare my recipient account</button>}{(!d.operation||!['queued','dispatching','unknown','held'].includes(d.operation.status))&&<button className="cb-button" disabled={d.paymentEnabled===false||preparing||c.blocked||(!d.revision&&!!d.configurationBlocker)} onClick={()=>void onboard()}>{d.revision?'Request or renew hosted onboarding':'Create my recipient account'}</button>}{d.operation?.hostedUrl&&<HostedAction account={account} path={`money-operations/${d.operation.operationId}`} label="Continue my hosted onboarding"/>}<p>Payment-account dashboard access is not supported by this configured integration. Bank arrival remains unverified unless a separate payout observation is listed.</p>{d.payoutObservations.map((p,i)=><p key={p.payoutId}>Payout observation {i+1}: {reason(p.status)} · {new Date(p.observedAt).toLocaleString()}</p>)}</>}<p role="alert">{readError?.message}</p><PaymentRecovery command={c} refresh={r.reload}/></section>;
+import { useEffect, useRef, useState } from "react";
+import { request } from "./api";
+import {
+  paymentIdentity,
+  usePaymentRead,
+  usePaymentRequest,
+} from "./payment-request";
+import { ResourceState } from "./ui";
+import { reason, type MoneyOperation } from "./payment-model";
+import { PaymentRecovery, HostedAction } from "./payment-presentation";
+type PaymentAccount = {
+  paymentEnabled?: boolean;
+  revision: number;
+  transferCapability: string;
+  payoutCapability: string;
+  observedAt: string | null;
+  requirements?: { pendingCount: number; status: string };
+  operation?: MoneyOperation | null;
+  configurationBlocker?: string | null;
+  dashboardAvailable?: boolean;
+  payoutObservations: {
+    payoutId: string;
+    status: string;
+    observedAt: string;
+  }[];
+};
+export function PaymentAccountPanel({ account }: { account: string }) {
+  const r = usePaymentRead<PaymentAccount>(account, "me/payment-account"),
+    c = usePaymentRequest(account, "recipient");
+  const d = r.data;
+  const preflight = useRef<AbortController | null>(null);
+  const [preparing, setPreparing] = useState(false),
+    [readError, setReadError] = useState<Error | null>(null);
+  useEffect(() => () => preflight.current?.abort(), [account]);
+  useEffect(() => {
+    const fn = () => r.reload();
+    window.addEventListener("focus", fn);
+    return () => window.removeEventListener("focus", fn);
+  }, [account]);
+  async function prepare() {
+    if (await c.send("me/payment-account/preparation", {}, { userId: account }))
+      r.reload();
+  }
+  async function onboard() {
+    preflight.current?.abort();
+    const ctrl = new AbortController();
+    preflight.current = ctrl;
+    setPreparing(true);
+    setReadError(null);
+    try {
+      await paymentIdentity(account, ctrl.signal);
+      const current = await request<PaymentAccount>("me/payment-account", {
+        signal: ctrl.signal,
+      });
+      await paymentIdentity(account, ctrl.signal);
+      await c.send(
+        "me/payment-account/onboarding",
+        { expectedAccountRevision: current.revision },
+        { status: "queued" },
+        ["operationId"],
+      );
+      if (!ctrl.signal.aborted) r.reload();
+    } catch (e) {
+      if (!ctrl.signal.aborted) setReadError(e as Error);
+    } finally {
+      if (!ctrl.signal.aborted) setPreparing(false);
+    }
+  }
+  return (
+    <section className="cb-panel">
+      <h2>Your payment account</h2>
+      <p>
+        Enter bank and identity details only on the payment provider’s hosted
+        page. Campus Bounty does not collect these documents here.
+      </p>
+      {!d ? (
+        <ResourceState {...r} />
+      ) : (
+        <>
+          <p>
+            Transfers to your payment account:{" "}
+            <strong>{reason(d.transferCapability)}</strong>. Bank payouts:{" "}
+            <strong>{reason(d.payoutCapability)}</strong>.
+          </p>
+          <p>
+            Requirements: {reason(d.requirements?.status ?? "unknown")}
+            {d.requirements?.status !== "unknown" &&
+              ` · ${d.requirements?.pendingCount ?? 0} pending`}
+            .{" "}
+            {d.observedAt
+              ? `Last checked ${new Date(d.observedAt).toLocaleString()}.`
+              : "No provider observation yet."}
+          </p>
+          {d.configurationBlocker && (
+            <p className="cb-alert">{reason(d.configurationBlocker)}</p>
+          )}
+          {d.operation && (
+            <p>
+              Latest {reason(d.operation.kind)} request:{" "}
+              {reason(d.operation.status)}. A completed request or redirect does
+              not prove account verification.
+            </p>
+          )}
+          {d.revision === 0 && !d.operation && (
+            <button
+              className="cb-button"
+              disabled={
+                d.paymentEnabled === false ||
+                preparing ||
+                c.blocked ||
+                !!d.configurationBlocker
+              }
+              onClick={() => void prepare()}
+            >
+              Prepare my recipient account
+            </button>
+          )}
+          {(!d.operation ||
+            !["queued", "dispatching", "unknown", "held"].includes(
+              d.operation.status,
+            )) && (
+            <button
+              className="cb-button"
+              disabled={
+                d.paymentEnabled === false ||
+                preparing ||
+                c.blocked ||
+                (!d.revision && !!d.configurationBlocker)
+              }
+              onClick={() => void onboard()}
+            >
+              {d.revision
+                ? "Request or renew hosted onboarding"
+                : "Create my recipient account"}
+            </button>
+          )}
+          {d.operation?.hostedUrl && (
+            <HostedAction
+              account={account}
+              path={`money-operations/${d.operation.operationId}`}
+              label="Continue my hosted onboarding"
+            />
+          )}
+          <p>
+            Payment-account dashboard access is not supported by this configured
+            integration. Bank arrival remains unverified unless a separate
+            payout observation is listed.
+          </p>
+          {d.payoutObservations.map((p, i) => (
+            <p key={p.payoutId}>
+              Payout observation {i + 1}: {reason(p.status)} ·{" "}
+              {new Date(p.observedAt).toLocaleString()}
+            </p>
+          ))}
+        </>
+      )}
+      <p role="alert">{readError?.message}</p>
+      <PaymentRecovery command={c} refresh={r.reload} />
+    </section>
+  );
 }

@@ -10,14 +10,16 @@ export function AgreementSummary({
   if (agreement.state === "completed")
     return (
       <p className="cb-agreement-next">
-        <strong>Completed.</strong> All milestones accepted. Open the agreement for verified transfer status.
+        <strong>Completed.</strong> All milestones accepted. Open the agreement
+        for verified transfer status.
       </p>
     );
   if (["awaiting_funding", "pending_funding"].includes(agreement.state))
     return (
       <p className="cb-agreement-next">
         <strong>Waiting for funding.</strong> The publisher must fund the
-        agreement before work starts. Open the agreement to review financial terms and payment availability.
+        agreement before work starts. Open the agreement to review financial
+        terms and payment availability.
       </p>
     );
   if (agreement.state !== "active")

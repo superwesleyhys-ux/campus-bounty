@@ -1,5 +1,33 @@
-import test from 'node:test';import assert from 'node:assert/strict';
-import {isolated,snapshotExistingTables} from './transaction-ui-fixture.mjs';
-import {paymentFixture} from './payment-fix1-fixture.mjs';
-import {paid} from './amendment-money-fixture.mjs';
-test('accepted021 funded legacy rows survive clean additive022 with legacy authority intact',async()=>{const f=await isolated(2);try{await f.migrateThrough(21,{exact:true});const x=await paymentFixture(f);const s=await x.prepare({cap:true,team:true,fee:100});await paid(f,x,s,100);const before=await snapshotExistingTables(f.owner);await f.migrateThrough(22);assert.deepEqual(await snapshotExistingTables(f.owner,before.map(t=>t.table)),before);await f.store.verifyRoles();assert.equal((await f.market.agreementFunding(s.P,s.g.id)).coverage,'covered');const v=await f.market.participantPayment(s.P,'agreement',s.g.id);assert.equal(v.configurationChangeBlocker,null);assert.equal(v.preparationBlocker,'payment_configuration_required');}finally{await f.close();}});
+import test from "node:test";
+import assert from "node:assert/strict";
+import { isolated, snapshotExistingTables } from "./transaction-ui-fixture.mjs";
+import { paymentFixture } from "./payment-fix1-fixture.mjs";
+import { paid } from "./amendment-money-fixture.mjs";
+test("accepted021 funded legacy rows survive clean additive022 with legacy authority intact", async () => {
+  const f = await isolated(2);
+  try {
+    await f.migrateThrough(21, { exact: true });
+    const x = await paymentFixture(f);
+    const s = await x.prepare({ cap: true, team: true, fee: 100 });
+    await paid(f, x, s, 100);
+    const before = await snapshotExistingTables(f.owner);
+    await f.migrateThrough(22);
+    assert.deepEqual(
+      await snapshotExistingTables(
+        f.owner,
+        before.map((t) => t.table),
+      ),
+      before,
+    );
+    await f.store.verifyRoles();
+    assert.equal(
+      (await f.market.agreementFunding(s.P, s.g.id)).coverage,
+      "covered",
+    );
+    const v = await f.market.participantPayment(s.P, "agreement", s.g.id);
+    assert.equal(v.configurationChangeBlocker, null);
+    assert.equal(v.preparationBlocker, "payment_configuration_required");
+  } finally {
+    await f.close();
+  }
+});

@@ -526,8 +526,7 @@ export function Publish({
               </p>
             )}
             <p className="cb-alert">
-              Publishing does not
-              collect or transfer money.
+              Publishing does not collect or transfer money.
             </p>
             <p>
               You can edit or pause this listing after publishing. Signed

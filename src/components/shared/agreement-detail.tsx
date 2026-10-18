@@ -55,11 +55,18 @@ export function AgreementDetail({
       {agreement.state === "completed" && (
         <p className="cb-alert cb-success" role="status">
           Agreement completed: every milestone has been accepted. This records
-          fulfillment. Verified transfers and any holds are shown separately below.
+          fulfillment. Verified transfers and any holds are shown separately
+          below.
         </p>
       )}
       <ReleaseDisclosure policy={agreement.transaction?.releasePolicy} />
-      <ParticipantPayment key={`payment:${account.id}:${id}`} account={account.id} id={id} kind="agreement" onChanged={resource.reload} />
+      <ParticipantPayment
+        key={`payment:${account.id}:${id}`}
+        account={account.id}
+        id={id}
+        kind="agreement"
+        onChanged={resource.reload}
+      />
       {agreement.transaction?.allocations && (
         <details className="cb-panel">
           <summary>Signed recipient amounts</summary>

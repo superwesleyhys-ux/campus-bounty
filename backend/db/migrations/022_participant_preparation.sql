@@ -286,17 +286,22 @@ BEGIN
 END $$;
 ALTER FUNCTION campus.participant_payment_read(text,uuid) RENAME TO participant_payment_read_before_configuration;
 CREATE FUNCTION campus.participant_payment_read(kind text,resource uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
-DECLARE result jsonb;pid uuid;blocked text;funding jsonb;
+DECLARE result jsonb;pid uuid;blocked text;funding jsonb;review jsonb;current_revision boolean:=false;review_summary jsonb;
 BEGIN
  result:=campus.participant_payment_read_before_configuration(kind,resource);funding:=result->'funding';
  SELECT policy_id INTO pid FROM campus.funding_obligations WHERE id=(funding->>'obligationId')::uuid;
  IF pid IS NULL THEN SELECT p.id INTO pid FROM campus.payment_execution_policies p JOIN campus.payment_environments e ON e.id=p.environment_id AND e.enabled WHERE p.aggregate_type=kind AND p.aggregate_id=resource AND p.purpose='collection' ORDER BY p.version DESC LIMIT 1;END IF;
+ IF funding ? 'feeRevision' THEN
+  review:=campus.money_fee_revision_read((funding->>'obligationId')::uuid);
+  current_revision:=review->>'state'='settled' AND coalesce((funding#>>'{feeRevision,isCurrentEvidence}')::boolean,false) AND review->>'revisionId'=funding#>>'{feeRevision,id}' AND NOT EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts c WHERE c.environment_id=(funding->>'environmentId')::uuid);
+  review_summary:=jsonb_build_object('revisionId',review->'revisionId','state',review->>'state','isCurrentEvidence',current_revision,'settledActualFeeCents',review->'settledActualFeeCents','initialQuoteBlockers',CASE WHEN current_revision AND funding#>>'{activeAttempt,status}'='succeeded' THEN coalesce((SELECT jsonb_agg(value) FROM jsonb_array_elements(funding->'blockedReasons') WHERE value#>>'{}' IN('financial_policy_unresolved','quote_changed')),'[]') ELSE '[]'::jsonb END,'restitutions',coalesce((SELECT jsonb_agg(jsonb_build_object('source',CASE WHEN EXISTS(SELECT 1 FROM campus.funding_allocations fa WHERE fa.charge_id=rr.charge_id AND fa.environment_id=rr.environment_id) THEN 'original' ELSE 'supplemental' END,'amountCents',rr.amount_cents::text,'status',coalesce((SELECT mo.status FROM campus.money_operations mo WHERE mo.obligation_id=rr.obligation_id AND mo.kind='fee_restitution' AND mo.payload->>'restitutionId'=rr.id::text ORDER BY mo.created_at DESC,mo.id DESC LIMIT 1),'owed')) ORDER BY rr.id) FROM campus.payment_fee_revision_restitutions rr WHERE rr.obligation_id=(funding->>'obligationId')::uuid AND rr.revision_id=(review->>'revisionId')::uuid),'[]'));
+ END IF;
  blocked:=campus.preparation_policy_reason(pid);
  IF blocked IS NOT NULL THEN
   funding:=funding||jsonb_build_object('allowedActions',(funding->'allowedActions')-'request_quote'-'create_payment_attempt','blockedReasons',(funding->'blockedReasons')||to_jsonb(blocked));
   IF result->'feePlan' <> 'null'::jsonb THEN result:=jsonb_set(result,'{feePlan,allowedActions}','[]');END IF;
  END IF;
- RETURN result||jsonb_build_object('funding',funding,'configurationChangeBlocker',blocked,'approvedDisclosures',(SELECT payload->'disclosure' FROM campus.payment_execution_policies WHERE id=pid));
+ RETURN result||jsonb_build_object('funding',funding,'feeReview',review_summary,'configurationChangeBlocker',blocked,'approvedDisclosures',(SELECT payload->'disclosure' FROM campus.payment_execution_policies WHERE id=pid));
 END $$;
 REVOKE ALL ON FUNCTION campus.preparation_policy_reason(uuid),campus.money_attempt_before_preparation(uuid,jsonb),campus.money_attempt(uuid,jsonb),campus.money_dispatchable_before_preparation(campus.money_operations),campus.money_dispatchable(campus.money_operations),campus.participant_payment_read_before_configuration(text,uuid),campus.participant_payment_read(text,uuid) FROM PUBLIC,campus_app,campus_auth,campus_worker;
 GRANT EXECUTE ON FUNCTION campus.money_attempt(uuid,jsonb),campus.participant_payment_read(text,uuid) TO campus_app;

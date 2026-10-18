@@ -1,6 +1,18 @@
-import {feeRevisionProposalSchema,feeRevisionConfirmationSchema,feeRevisionStartSchema,feeRevisionReadSchema,feeRevisionResponses} from '../payments/fee-revision-models.mjs';
-import {feePlanProposalSchema,feePlanConfirmationSchema,feePlanReadSchema,feePlanProposalResponseSchema,feePlanConfirmationResponseSchema} from '../payments/fee-plan-models.mjs';
-import {paymentCommandSchemas} from '../payments/command-models.mjs';
+import {
+  feeRevisionProposalSchema,
+  feeRevisionConfirmationSchema,
+  feeRevisionStartSchema,
+  feeRevisionReadSchema,
+  feeRevisionResponses,
+} from "../payments/fee-revision-models.mjs";
+import {
+  feePlanProposalSchema,
+  feePlanConfirmationSchema,
+  feePlanReadSchema,
+  feePlanProposalResponseSchema,
+  feePlanConfirmationResponseSchema,
+} from "../payments/fee-plan-models.mjs";
+import { paymentCommandSchemas } from "../payments/command-models.mjs";
 import {
   fundingReadSchema,
   orderPaymentReadSchema,
@@ -86,8 +98,15 @@ async function available(c) {
       "Payments are unavailable on this release.",
     );
 }
-export function paymentModule(store, {paymentEnabled=false}={}) {
-  const actionAvailable=()=>{if(!paymentEnabled)throw new Problem(503,'payments_unavailable','New payment actions are unavailable. Existing payment status remains readable.');};
+export function paymentModule(store, { paymentEnabled = false } = {}) {
+  const actionAvailable = () => {
+    if (!paymentEnabled)
+      throw new Problem(
+        503,
+        "payments_unavailable",
+        "New payment actions are unavailable. Existing payment status remains readable.",
+      );
+  };
   const read = (actor, fn) =>
     store.as(actor, async (c) => {
       await account(c, actor);
@@ -100,7 +119,26 @@ export function paymentModule(store, {paymentEnabled=false}={}) {
     moneySql(c, "SELECT campus.money_projection($1,$2) AS result", [
       kind,
       id,
-    ]).then((r) => {const value=fundingReadSchema.parse(r.rows[0].result);return paymentEnabled?value:{...value,allowedActions:value.allowedActions.filter(a=>['refresh','refresh_attempt','open_dispute','request_refund_review','review_fee_revision'].includes(a)),blockedReasons:[...new Set([...value.blockedReasons,'payments_unavailable'])]};});
+    ]).then((r) => {
+      const value = fundingReadSchema.parse(r.rows[0].result);
+      return paymentEnabled
+        ? value
+        : {
+            ...value,
+            allowedActions: value.allowedActions.filter((a) =>
+              [
+                "refresh",
+                "refresh_attempt",
+                "open_dispute",
+                "request_refund_review",
+                "review_fee_revision",
+              ].includes(a),
+            ),
+            blockedReasons: [
+              ...new Set([...value.blockedReasons, "payments_unavailable"]),
+            ],
+          };
+    });
   async function command(actor, id, input, key, schema, kind, fn) {
     actionAvailable();
     uuid(id);
@@ -123,7 +161,10 @@ export function paymentModule(store, {paymentEnabled=false}={}) {
           ).rows[0].result,
       );
       await member(c, actor, { write: true });
-      return paymentCommandSchemas[fn].parse({ receipt, current: await projection(c, kind, id) });
+      return paymentCommandSchemas[fn].parse({
+        receipt,
+        current: await projection(c, kind, id),
+      });
     });
   }
   async function caseCommand(actor, kind, id, input, key, schema, fn) {
@@ -148,26 +189,161 @@ export function paymentModule(store, {paymentEnabled=false}={}) {
           ).rows[0].result,
       );
       await member(c, actor, { write: true });
-      return paymentCommandSchemas[fn].parse({ receipt, current: await projection(c, kind, id) });
+      return paymentCommandSchemas[fn].parse({
+        receipt,
+        current: await projection(c, kind, id),
+      });
     });
   }
-  async function feeRevisionCommand(actor,id,input,key,kind){
-    actionAvailable();uuid(id);const d=parse({propose:feeRevisionProposalSchema,confirm:feeRevisionConfirmationSchema,start:feeRevisionStartSchema}[kind],input);
-    return read(actor,async c=>{await member(c,actor,{write:true});const receipt=await idempotent(c,actor,'payment.fee_revision_'+kind+':'+id,key,d,async()=> (await moneySql(c,`SELECT campus.money_fee_revision_${kind}($1,$2) AS result`,[id,JSON.stringify(d)])).rows[0].result);await member(c,actor,{write:true});const current=(await moneySql(c,`SELECT campus.${kind==='propose'?'money_fee_revision_read':'money_fee_revision_current'}($1) AS result`,[id])).rows[0].result;return feeRevisionResponses[kind].parse({receipt,current});});
+  async function feeRevisionCommand(actor, id, input, key, kind) {
+    actionAvailable();
+    uuid(id);
+    const d = parse(
+      {
+        propose: feeRevisionProposalSchema,
+        confirm: feeRevisionConfirmationSchema,
+        start: feeRevisionStartSchema,
+      }[kind],
+      input,
+    );
+    return read(actor, async (c) => {
+      await member(c, actor, { write: true });
+      const receipt = await idempotent(
+        c,
+        actor,
+        "payment.fee_revision_" + kind + ":" + id,
+        key,
+        d,
+        async () =>
+          (
+            await moneySql(
+              c,
+              `SELECT campus.money_fee_revision_${kind}($1,$2) AS result`,
+              [id, JSON.stringify(d)],
+            )
+          ).rows[0].result,
+      );
+      await member(c, actor, { write: true });
+      const current = (
+        await moneySql(
+          c,
+          `SELECT campus.${kind === "propose" ? "money_fee_revision_read" : "money_fee_revision_current"}($1) AS result`,
+          [id],
+        )
+      ).rows[0].result;
+      return feeRevisionResponses[kind].parse({ receipt, current });
+    });
   }
   return {
-    paymentFeeRevision:(actor,id)=>{uuid(id);return read(actor,async c=>{const value=feeRevisionReadSchema.parse((await moneySql(c,'SELECT campus.money_fee_revision_read($1) AS result',[id])).rows[0].result);return paymentEnabled?value:{...value,allowedActions:['refresh'],blockedReasons:[...value.blockedReasons,'payments_unavailable']};});},
-    proposePaymentFeeRevision:(a,id,d,k)=>feeRevisionCommand(a,id,d,k,'propose'),
-    confirmPaymentFeeRevision:(a,id,d,k)=>feeRevisionCommand(a,id,d,k,'confirm'),
-    startPaymentFeeSupplement:(a,id,d,k)=>feeRevisionCommand(a,id,d,k,'start'),
-    paymentFeePlan:(actor,kind,id)=>{uuid(id);return read(actor,async c=>{const value=feePlanReadSchema.parse((await moneySql(c,'SELECT campus.money_fee_plan_read($1,$2) AS result',[kind,id])).rows[0].result);return paymentEnabled?value:{...value,allowedActions:[]};});},
-    proposePaymentFeePlan:async(actor,kind,id,input,key)=>{
-      actionAvailable();uuid(id);const d=parse(feePlanProposalSchema,input);
-      return read(actor,async c=>{await member(c,actor,{write:true});const receipt=await idempotent(c,actor,'payment.fee_plan:'+kind+':'+id,key,d,async()=> (await moneySql(c,'SELECT campus.money_fee_plan_propose($1,$2,$3) AS result',[kind,id,JSON.stringify(d)])).rows[0].result);await member(c,actor,{write:true});return feePlanProposalResponseSchema.parse({receipt,current:(await moneySql(c,'SELECT campus.money_fee_plan_read($1,$2) AS result',[kind,id])).rows[0].result});});
+    paymentFeeRevision: (actor, id) => {
+      uuid(id);
+      return read(actor, async (c) => {
+        const value = feeRevisionReadSchema.parse(
+          (
+            await moneySql(
+              c,
+              "SELECT campus.money_fee_revision_read($1) AS result",
+              [id],
+            )
+          ).rows[0].result,
+        );
+        return paymentEnabled
+          ? value
+          : {
+              ...value,
+              allowedActions: ["refresh"],
+              blockedReasons: [...value.blockedReasons, "payments_unavailable"],
+            };
+      });
     },
-    confirmPaymentFeePlan:async(actor,id,input,key)=>{
-      actionAvailable();uuid(id);const d=parse(feePlanConfirmationSchema,input);
-      return read(actor,async c=>{await member(c,actor,{write:true});const receipt=await idempotent(c,actor,'payment.fee_plan_confirm:'+id,key,d,async()=> (await moneySql(c,'SELECT campus.money_fee_plan_confirm($1,$2) AS result',[id,JSON.stringify(d)])).rows[0].result);await member(c,actor,{write:true});return feePlanConfirmationResponseSchema.parse({receipt,current:(await moneySql(c,'SELECT campus.money_fee_plan_current($1) AS result',[id])).rows[0].result});});
+    proposePaymentFeeRevision: (a, id, d, k) =>
+      feeRevisionCommand(a, id, d, k, "propose"),
+    confirmPaymentFeeRevision: (a, id, d, k) =>
+      feeRevisionCommand(a, id, d, k, "confirm"),
+    startPaymentFeeSupplement: (a, id, d, k) =>
+      feeRevisionCommand(a, id, d, k, "start"),
+    paymentFeePlan: (actor, kind, id) => {
+      uuid(id);
+      return read(actor, async (c) => {
+        const value = feePlanReadSchema.parse(
+          (
+            await moneySql(
+              c,
+              "SELECT campus.money_fee_plan_read($1,$2) AS result",
+              [kind, id],
+            )
+          ).rows[0].result,
+        );
+        return paymentEnabled ? value : { ...value, allowedActions: [] };
+      });
+    },
+    proposePaymentFeePlan: async (actor, kind, id, input, key) => {
+      actionAvailable();
+      uuid(id);
+      const d = parse(feePlanProposalSchema, input);
+      return read(actor, async (c) => {
+        await member(c, actor, { write: true });
+        const receipt = await idempotent(
+          c,
+          actor,
+          "payment.fee_plan:" + kind + ":" + id,
+          key,
+          d,
+          async () =>
+            (
+              await moneySql(
+                c,
+                "SELECT campus.money_fee_plan_propose($1,$2,$3) AS result",
+                [kind, id, JSON.stringify(d)],
+              )
+            ).rows[0].result,
+        );
+        await member(c, actor, { write: true });
+        return feePlanProposalResponseSchema.parse({
+          receipt,
+          current: (
+            await moneySql(
+              c,
+              "SELECT campus.money_fee_plan_read($1,$2) AS result",
+              [kind, id],
+            )
+          ).rows[0].result,
+        });
+      });
+    },
+    confirmPaymentFeePlan: async (actor, id, input, key) => {
+      actionAvailable();
+      uuid(id);
+      const d = parse(feePlanConfirmationSchema, input);
+      return read(actor, async (c) => {
+        await member(c, actor, { write: true });
+        const receipt = await idempotent(
+          c,
+          actor,
+          "payment.fee_plan_confirm:" + id,
+          key,
+          d,
+          async () =>
+            (
+              await moneySql(
+                c,
+                "SELECT campus.money_fee_plan_confirm($1,$2) AS result",
+                [id, JSON.stringify(d)],
+              )
+            ).rows[0].result,
+        );
+        await member(c, actor, { write: true });
+        return feePlanConfirmationResponseSchema.parse({
+          receipt,
+          current: (
+            await moneySql(
+              c,
+              "SELECT campus.money_fee_plan_current($1) AS result",
+              [id],
+            )
+          ).rows[0].result,
+        });
+      });
     },
     requestPaymentRefund: (a, kind, id, d, k) =>
       caseCommand(
@@ -181,7 +357,16 @@ export function paymentModule(store, {paymentEnabled=false}={}) {
       ),
     openPaymentDispute: (a, kind, id, d, k) =>
       caseCommand(a, kind, id, d, k, disputeSchema, "money_open_dispute"),
-    paymentAccount: (actor) => read(actor,async c=>({...await checked(c,"SELECT campus.money_account() AS result",[],accountReadSchema),paymentEnabled})),
+    paymentAccount: (actor) =>
+      read(actor, async (c) => ({
+        ...(await checked(
+          c,
+          "SELECT campus.money_account() AS result",
+          [],
+          accountReadSchema,
+        )),
+        paymentEnabled,
+      })),
     onboardPaymentAccount: (actor, input, key) => {
       actionAvailable();
       const d = parse(onboardingSchema, input);

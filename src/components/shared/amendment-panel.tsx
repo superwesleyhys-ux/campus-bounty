@@ -223,7 +223,16 @@ export function AmendmentPanel({
       {loading && <p role="status">Loading exact proposal revision…</p>}
       {proposal && !editor && (
         <>
-          <AmendmentPayment key={`payment:${account.id}:${proposal.id}`} account={account.id} proposal={proposal} publisher={agreement.owner_id===account.id} onChanged={()=>{setRefresh(n=>n+1);reload();}} />
+          <AmendmentPayment
+            key={`payment:${account.id}:${proposal.id}`}
+            account={account.id}
+            proposal={proposal}
+            publisher={agreement.owner_id === account.id}
+            onChanged={() => {
+              setRefresh((n) => n + 1);
+              reload();
+            }}
+          />
           <AmendmentDetail
             key={`${proposal.id}:${proposal.proposalRevision}:${refresh}`}
             proposal={proposal}

@@ -11,7 +11,29 @@ const attemptStatus = z.enum([
   "canceled",
   "unknown",
 ]);
-const feePlanSummarySchema=z.strictObject({id,digest:z.string().regex(/^[a-f0-9]{64}$/),estimatedFeeCents:cents,maximumFeeCents:cents,maximumPayerFeeCents:cents,maximumRecipientFeeCents:cents,upfrontCents:cents,actualFeeCents:cents.nullable(),payerRestitutionCents:cents.nullable(),restitutionStatus:z.enum(['not_determined','not_required','owed','queued','dispatching','succeeded','failed','unknown','held']),restoration:z.string()});
+const feePlanSummarySchema = z.strictObject({
+  id,
+  digest: z.string().regex(/^[a-f0-9]{64}$/),
+  estimatedFeeCents: cents,
+  maximumFeeCents: cents,
+  maximumPayerFeeCents: cents,
+  maximumRecipientFeeCents: cents,
+  upfrontCents: cents,
+  actualFeeCents: cents.nullable(),
+  payerRestitutionCents: cents.nullable(),
+  restitutionStatus: z.enum([
+    "not_determined",
+    "not_required",
+    "owed",
+    "queued",
+    "dispatching",
+    "succeeded",
+    "failed",
+    "unknown",
+    "held",
+  ]),
+  restoration: z.string(),
+});
 export const unknownFundingSchema = z.strictObject({
   coverage: z.literal("unknown"),
   feePlan: feePlanSummarySchema.nullable().optional(),
@@ -26,7 +48,16 @@ export const unknownFundingSchema = z.strictObject({
 });
 export const knownFundingSchema = z.strictObject({
   obligationId: id,
-  feeRevision: z.strictObject({id,digest:z.string().regex(/^[a-f0-9]{64}$/),maximumTotalFeeCents:cents,supplementalAmountCents:cents,settledActualFeeCents:cents.nullable(),isCurrentEvidence:z.boolean()}).optional(),
+  feeRevision: z
+    .strictObject({
+      id,
+      digest: z.string().regex(/^[a-f0-9]{64}$/),
+      maximumTotalFeeCents: cents,
+      supplementalAmountCents: cents,
+      settledActualFeeCents: cents.nullable(),
+      isCurrentEvidence: z.boolean(),
+    })
+    .optional(),
   feePlan: feePlanSummarySchema.nullable().optional(),
   paymentRevision: z.number().int().positive(),
   environmentId: id,
@@ -153,11 +184,22 @@ export const operationReadSchema = z.strictObject({
   bankPayout: z.literal("unknown"),
 });
 export const accountReadSchema = z.strictObject({
-  paymentEnabled:z.boolean().optional(),
-  requirements: z.strictObject({pendingCount:z.number().int().nonnegative(),status:z.enum(["unknown","none","currently_due","past_due","pending_verification"])}).optional(),
+  paymentEnabled: z.boolean().optional(),
+  requirements: z
+    .strictObject({
+      pendingCount: z.number().int().nonnegative(),
+      status: z.enum([
+        "unknown",
+        "none",
+        "currently_due",
+        "past_due",
+        "pending_verification",
+      ]),
+    })
+    .optional(),
   operation: operationReadSchema.nullable().optional(),
-  configurationBlocker:z.string().nullable().optional(),
-  dashboardAvailable:z.boolean().optional(),
+  configurationBlocker: z.string().nullable().optional(),
+  dashboardAvailable: z.boolean().optional(),
   revision: z.number().int().nonnegative(),
   transferCapability: z.string(),
   payoutCapability: z.string(),

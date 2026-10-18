@@ -1,4 +1,9 @@
-import {FEE_REPORT_TYPE,parseFeeCsv,sha256,downloadStripeReport} from '../payments/fee-reports.mjs';
+import {
+  FEE_REPORT_TYPE,
+  parseFeeCsv,
+  sha256,
+  downloadStripeReport,
+} from "../payments/fee-reports.mjs";
 import Stripe from "stripe";
 export const STRIPE_API_VERSION = "2026-09-30.endive";
 export const SNAPSHOT_EVENTS = new Set([
@@ -63,17 +68,54 @@ export function createStripePayments({
   const options = (op) => ({ idempotencyKey: op.provider_key });
   return {
     environment,
-    async listFeeBalances(cursor){return stripe.balanceTransactions.list({limit:16,type:'stripe_fee',...(cursor?{starting_after:cursor}:{})});},
-    async listFeeReports(cursor){return stripe.reporting.reportRuns.list({limit:16,...(cursor?{starting_after:cursor}:{})});},
-    async retrieveFeeReport(runId){
-      const run=await stripe.reporting.reportRuns.retrieve(runId);
-      if(run.id!==runId||run.livemode!==(environment.mode==='live')||run.report_type!==FEE_REPORT_TYPE||run.parameters.connected_account||(run.parameters.currency&&run.parameters.currency.toLowerCase()!=='usd'))throw Error('provider_scope_mismatch');
-      if(run.status!=='succeeded')return {status:run.status};
-      if(!run.result?.id||run.result.purpose!=='finance_report_run')throw Error('fee_report_result_invalid');
-      const file=await stripe.files.retrieve(run.result.id);
-      if(file.id!==run.result.id||file.purpose!=='finance_report_run'||!file.url||file.size>8*1024*1024)throw Error('fee_report_result_invalid');
-      const text=await (reportTransport??((url)=>downloadStripeReport(url,secret)))(file.url);
-      return {status:'succeeded',runId,fileId:file.id,contentDigest:sha256(text),reportType:run.report_type,intervalStart:run.parameters.interval_start,intervalEnd:run.parameters.interval_end,rows:parseFeeCsv(text,environment.platformAccountId)};
+    async listFeeBalances(cursor) {
+      return stripe.balanceTransactions.list({
+        limit: 16,
+        type: "stripe_fee",
+        ...(cursor ? { starting_after: cursor } : {}),
+      });
+    },
+    async listFeeReports(cursor) {
+      return stripe.reporting.reportRuns.list({
+        limit: 16,
+        ...(cursor ? { starting_after: cursor } : {}),
+      });
+    },
+    async retrieveFeeReport(runId) {
+      const run = await stripe.reporting.reportRuns.retrieve(runId);
+      if (
+        run.id !== runId ||
+        run.livemode !== (environment.mode === "live") ||
+        run.report_type !== FEE_REPORT_TYPE ||
+        run.parameters.connected_account ||
+        (run.parameters.currency &&
+          run.parameters.currency.toLowerCase() !== "usd")
+      )
+        throw Error("provider_scope_mismatch");
+      if (run.status !== "succeeded") return { status: run.status };
+      if (!run.result?.id || run.result.purpose !== "finance_report_run")
+        throw Error("fee_report_result_invalid");
+      const file = await stripe.files.retrieve(run.result.id);
+      if (
+        file.id !== run.result.id ||
+        file.purpose !== "finance_report_run" ||
+        !file.url ||
+        file.size > 8 * 1024 * 1024
+      )
+        throw Error("fee_report_result_invalid");
+      const text = await (
+        reportTransport ?? ((url) => downloadStripeReport(url, secret))
+      )(file.url);
+      return {
+        status: "succeeded",
+        runId,
+        fileId: file.id,
+        contentDigest: sha256(text),
+        reportType: run.report_type,
+        intervalStart: run.parameters.interval_start,
+        intervalEnd: run.parameters.interval_end,
+        rows: parseFeeCsv(text, environment.platformAccountId),
+      };
     },
     async createCheckout(op) {
       const p = op.payload;
@@ -81,7 +123,9 @@ export function createStripePayments({
         {
           mode: "payment",
           ui_mode: "hosted_page",
-          ...(p.paymentMethodTypes?{payment_method_types:p.paymentMethodTypes}:{}),
+          ...(p.paymentMethodTypes
+            ? { payment_method_types: p.paymentMethodTypes }
+            : {}),
           line_items: [
             {
               price_data: {
@@ -212,7 +256,19 @@ export function createStripePayments({
         observedAt: new Date().toISOString(),
         requirements: {
           pendingCount: Math.min(a.requirements?.entries?.length ?? 0, 10000),
-          status: !a.requirements ? "unknown" : !a.requirements.entries?.length ? "none" : a.requirements.entries.some(r => r.minimum_deadline?.status === "past_due") ? "past_due" : a.requirements.entries.some(r => r.awaiting_action_from === "user") ? "currently_due" : "pending_verification",
+          status: !a.requirements
+            ? "unknown"
+            : !a.requirements.entries?.length
+              ? "none"
+              : a.requirements.entries.some(
+                    (r) => r.minimum_deadline?.status === "past_due",
+                  )
+                ? "past_due"
+                : a.requirements.entries.some(
+                      (r) => r.awaiting_action_from === "user",
+                    )
+                  ? "currently_due"
+                  : "pending_verification",
         },
       };
     },

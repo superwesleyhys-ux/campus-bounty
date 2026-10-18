@@ -6,7 +6,6 @@ import { historyDetailUrl } from "./history-pagination";
 import { useEffect, useRef } from "react";
 import { ApiError, useMutation, useResource } from "./api";
 import { ListingEventVersion } from "./listing-event-version";
-import { ConfirmAction } from "./confirm-action";
 import { Conversation } from "./conversation";
 import { money, type Account, type Order } from "./types";
 import { Feedback, Field, PendingButton, ResourceState, Status } from "./ui";
@@ -41,7 +40,14 @@ export function OrderDetail({ id, account }: { id: string; account: Account }) {
         <strong className="cb-price">{money(order.total_cents)}</strong>
       </div>
       <ListingEventVersion kind="product" id={order.product_id} />
-      <ParticipantPayment key={`payment:${account.id}:${id}`} account={account.id} id={id} kind="order" onChanged={resource.reload} />
+      <ParticipantPayment
+        key={`payment:${account.id}:${id}`}
+        account={account.id}
+        id={id}
+        kind="order"
+        orderPending={order.state === "pending_payment" && !seller}
+        onChanged={resource.reload}
+      />
       <div className="cb-detail-grid cb-conversation-detail">
         <section>
           <div className="cb-panel">
@@ -76,45 +82,18 @@ export function OrderDetail({ id, account }: { id: string; account: Account }) {
                 <p>
                   Reserved until{" "}
                   {new Date(order.reserved_until).toLocaleString("en-US")}.
-                  Payment status is shown above. Cancellation or expiry may retain
-                  inventory while a payment outcome is unknown.
+                  Payment status is shown above. Cancellation or expiry may
+                  retain inventory while a payment outcome is unknown.
                 </p>
                 <button className="cb-button" onClick={resource.reload}>
                   Refresh order status
                 </button>
-                {!seller && (
-                  <ConfirmAction
-                    headingLevel={3}
-                    cancelLabel="Keep reservation"
-                    label="Cancel reservation"
-                    description="Request cancellation. Payment attempts must be resolved before inventory can return; already received or late money may remain held for review."
-                    confirmLabel="Confirm cancellation"
-                    busy={mutation.busy}
-                    uncertain={uncertain}
-                    disabled={resource.loading}
-                    onCheckStatus={() => {
-                      heading.current?.focus();
-                      resource.reload();
-                    }}
-                    onConfirm={async () => {
-                      const result = await mutation.run<Order>(
-                        `orders/${id}/cancellation`,
-                        {},
-                        "Cancellation requested. Read the current payment and reservation status.",
-                      );
-                      if (result) {
-                        heading.current?.focus();
-                        resource.reload();
-                      }
-                      return !!result;
-                    }}
-                  />
-                )}
               </div>
             )}
             {order.state === "expired" && (
               <p className="cb-alert">
-                This reservation expired. Check current funding and listing availability; late received money may remain held.
+                This reservation expired. Check current funding and listing
+                availability; late received money may remain held.
               </p>
             )}
             {order.state === "cancelled" && (

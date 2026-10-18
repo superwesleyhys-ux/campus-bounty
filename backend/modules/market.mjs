@@ -1,5 +1,5 @@
 import { paymentPreparationModule } from "./payment-preparation.mjs";
-import {amendmentMoneyModule} from "./amendment-money.mjs";
+import { amendmentMoneyModule } from "./amendment-money.mjs";
 import { paymentModule } from "./payments.mjs";
 import { paymentAllocationModule } from "./payment-allocations.mjs";
 import { agreementAmendmentModule } from "./agreement-amendments.mjs";

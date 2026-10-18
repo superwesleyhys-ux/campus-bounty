@@ -229,9 +229,8 @@ export function ProductDetail({
                 </fieldset>
               )}
               <p className="cb-alert">
-                This creates an unpaid reservation for
-                15 minutes. No money is collected and the seller cannot ship or
-                hand over the item yet.
+                This creates an unpaid reservation for 15 minutes. No money is
+                collected and the seller cannot ship or hand over the item yet.
               </p>
               {unknown && (
                 <p role="status">

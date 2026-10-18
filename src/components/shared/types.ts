@@ -96,7 +96,12 @@ export type Application = {
 };
 export type Agreement = {
   transaction?: {
-    bindings?: {terms_id:string;terms_revision:number;transaction_terms_id:string;transaction_terms_revision:number}[];
+    bindings?: {
+      terms_id: string;
+      terms_revision: number;
+      transaction_terms_id: string;
+      transaction_terms_revision: number;
+    }[];
     releasePolicy: string | null;
     provenance: string;
     allocations?: {

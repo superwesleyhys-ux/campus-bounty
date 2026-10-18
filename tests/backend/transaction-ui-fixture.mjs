@@ -56,8 +56,8 @@ export async function isolated(index = 0) {
     ]),
   );
   const store = createStore(urls);
-  async function migrateThrough(version, {exact=false}={}) {
-    if(version===20 && !exact) version=22;
+  async function migrateThrough(version, { exact = false } = {}) {
+    if (version === 20 && !exact) version = 22;
     await owner.query(
       "CREATE SCHEMA IF NOT EXISTS campus;CREATE TABLE IF NOT EXISTS campus.schema_migrations(name text PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())",
     );
@@ -95,7 +95,22 @@ export async function isolated(index = 0) {
     await store.close();
     await owner.end();
     await admin.query("DROP DATABASE " + database + " WITH (FORCE)");
-    await journal({ database, action: "dropped", absent:(await admin.query("SELECT 1 FROM pg_database WHERE datname=$1",[database])).rowCount===0, remainingConnections:(await admin.query("SELECT count(*)::int n FROM pg_stat_activity WHERE datname=$1",[database])).rows[0].n });
+    await journal({
+      database,
+      action: "dropped",
+      absent:
+        (
+          await admin.query("SELECT 1 FROM pg_database WHERE datname=$1", [
+            database,
+          ])
+        ).rowCount === 0,
+      remainingConnections: (
+        await admin.query(
+          "SELECT count(*)::int n FROM pg_stat_activity WHERE datname=$1",
+          [database],
+        )
+      ).rows[0].n,
+    });
     await admin.end();
   };
   try {
@@ -116,10 +131,10 @@ export async function isolated(index = 0) {
       store,
       urls,
       config,
-      market: createMarket(store,{paymentEnabled:true}),
+      market: createMarket(store, { paymentEnabled: true }),
       migrateThrough,
       close,
-      async user(name,{verified=true}={}) {
+      async user(name, { verified = true } = {}) {
         const id = key();
         await owner.query(
           "INSERT INTO campus.users(id,display_name) VALUES($1,$2)",
@@ -129,7 +144,11 @@ export async function isolated(index = 0) {
           "INSERT INTO campus.affiliations VALUES($1,$2,'transaction.example.test',now()+interval '1 year',true)",
           [id, institution],
         );
-        if(verified)await owner.query("INSERT INTO campus.identities VALUES($1,$2,'transaction.example.test',now())",[id+"@transaction.example.test",id]);
+        if (verified)
+          await owner.query(
+            "INSERT INTO campus.identities VALUES($1,$2,'transaction.example.test',now())",
+            [id + "@transaction.example.test", id],
+          );
         return id;
       },
     };
@@ -205,14 +224,40 @@ export async function snapshotExistingTables(owner, names) {
 }
 
 export async function controlledMoneyClock(f) {
- let current=Date.now();
- await f.owner.query('CREATE TABLE campus.fixture_money_clock(value timestamptz NOT NULL)');
- await f.owner.query('REVOKE ALL ON campus.fixture_money_clock FROM PUBLIC,campus_app,campus_auth,campus_worker');
- await f.owner.query('INSERT INTO campus.fixture_money_clock VALUES($1)',[new Date(current)]);
- await f.owner.query("CREATE OR REPLACE FUNCTION campus.money_now() RETURNS timestamptz LANGUAGE sql VOLATILE SET search_path=pg_catalog,campus AS $$ SELECT value FROM campus.fixture_money_clock $$");
- return {now:()=>current,async advance(ms){current+=ms;await f.owner.query('UPDATE campus.fixture_money_clock SET value=$1',[new Date(current)]);}};
+  let current = Date.now();
+  await f.owner.query(
+    "CREATE TABLE campus.fixture_money_clock(value timestamptz NOT NULL)",
+  );
+  await f.owner.query(
+    "REVOKE ALL ON campus.fixture_money_clock FROM PUBLIC,campus_app,campus_auth,campus_worker",
+  );
+  await f.owner.query("INSERT INTO campus.fixture_money_clock VALUES($1)", [
+    new Date(current),
+  ]);
+  await f.owner.query(
+    "CREATE OR REPLACE FUNCTION campus.money_now() RETURNS timestamptz LANGUAGE sql VOLATILE SET search_path=pg_catalog,campus AS $$ SELECT value FROM campus.fixture_money_clock $$",
+  );
+  return {
+    now: () => current,
+    async advance(ms) {
+      current += ms;
+      await f.owner.query("UPDATE campus.fixture_money_clock SET value=$1", [
+        new Date(current),
+      ]);
+    },
+  };
 }
 // Explicit scenario authority for old policy cases, never a production default.
-export async function legacyInlineProfile(f,environmentId){
- await f.owner.query("INSERT INTO campus.payment_billing_profiles(environment_id,version,platform_account_id,billing_mode,contract,provenance) SELECT id,1,platform_account_id,'inline',$2,'Synthetic: old-version fixture original charge balance closes modeled fee' FROM campus.payment_environments WHERE id=$1",[environmentId,JSON.stringify({kind:'synthetic_original_charge_balance_v1',source:'tests/backend/payment-money-fixture.mjs',model:'single original processing fee; later corrections held'})]);
+export async function legacyInlineProfile(f, environmentId) {
+  await f.owner.query(
+    "INSERT INTO campus.payment_billing_profiles(environment_id,version,platform_account_id,billing_mode,contract,provenance) SELECT id,1,platform_account_id,'inline',$2,'Synthetic: old-version fixture original charge balance closes modeled fee' FROM campus.payment_environments WHERE id=$1",
+    [
+      environmentId,
+      JSON.stringify({
+        kind: "synthetic_original_charge_balance_v1",
+        source: "tests/backend/payment-money-fixture.mjs",
+        model: "single original processing fee; later corrections held",
+      }),
+    ],
+  );
 }
