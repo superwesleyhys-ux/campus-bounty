@@ -23,8 +23,8 @@ for (const port of [3024, 3034, 2527]) {
 }
 const f = await isolated(1);
 await f.migrateThrough(22);
-const zeroFees=process.env.T2C_SCENARIO_ZERO_FEES === "1";
-const x = await configure(f, {fixedCents:zeroFees?0:100});
+const zeroFees = process.env.T2C_SCENARIO_ZERO_FEES === "1";
+const x = await configure(f, { fixedCents: zeroFees ? 0 : 100 });
 await mkdir(folder, { recursive: true, mode: 0o700 });
 const reviewer = await f.user("Synthetic eligibility reviewer");
 await f.owner.query(
@@ -61,24 +61,44 @@ const mail = createMailWorker(f.store, {
   transport,
   from: "Campus Bounty <noreply@transaction.example.test>",
 });
-let loseCheckout=false,holdExpiry=false;
+let loseCheckout = false,
+  holdExpiry = false;
 const create = x.transport.client.checkout.sessions.create;
 x.transport.client.checkout.sessions.create = async (...args) => {
   const s = await create(...args);
   s.url = "https://checkout.stripe.com/c/pay/" + s.id;
-  if(loseCheckout)throw Error("Synthetic lost Checkout creation response");
+  if (loseCheckout) throw Error("Synthetic lost Checkout creation response");
   return s;
 };
-const expire=x.transport.client.checkout.sessions.expire;
-x.transport.client.checkout.sessions.expire=async(...args)=>{if(holdExpiry)throw Error("Synthetic provider expiry response unavailable");return expire(...args);};
+const expire = x.transport.client.checkout.sessions.expire;
+x.transport.client.checkout.sessions.expire = async (...args) => {
+  if (holdExpiry) throw Error("Synthetic provider expiry response unavailable");
+  return expire(...args);
+};
 const provider = http.createServer(async (req, res) => {
   try {
     const u = new URL(req.url, "http://127.0.0.1:3034");
-    if(req.method==="POST"&&u.pathname.startsWith("/scenario/")){
-      const control=u.pathname.slice(10);if(control==="checkout-loss-on")loseCheckout=true;else if(control==="checkout-loss-off")loseCheckout=false;else if(control==="expiry-delay-on")holdExpiry=true;else if(control==="expiry-delay-off")holdExpiry=false;else throw Error("Unsupported synthetic scenario");
-      await journal({action:"synthetic_transport_scenario",control,pid:process.pid});res.setHeader("Content-Type","application/json");return res.end(JSON.stringify({synthetic:true,control}));
+    if (req.method === "POST" && u.pathname.startsWith("/scenario/")) {
+      const control = u.pathname.slice(10);
+      if (control === "checkout-loss-on") loseCheckout = true;
+      else if (control === "checkout-loss-off") loseCheckout = false;
+      else if (control === "expiry-delay-on") holdExpiry = true;
+      else if (control === "expiry-delay-off") holdExpiry = false;
+      else throw Error("Unsupported synthetic scenario");
+      await journal({
+        action: "synthetic_transport_scenario",
+        control,
+        pid: process.pid,
+      });
+      res.setHeader("Content-Type", "application/json");
+      return res.end(JSON.stringify({ synthetic: true, control }));
     }
-    const scenarioFee=u.searchParams.get("fee")==="0"?0:u.searchParams.get("fee")==="300"?300:100;
+    const scenarioFee =
+      u.searchParams.get("fee") === "0"
+        ? 0
+        : u.searchParams.get("fee") === "300"
+          ? 300
+          : 100;
     if (u.pathname.startsWith("/pay/")) {
       const id = u.pathname.slice(5);
       const s = x.transport.sessions.get(id);
@@ -88,13 +108,13 @@ const provider = http.createServer(async (req, res) => {
       }
       res.setHeader("Content-Type", "text/html");
       return res.end(
-        `<h1>Synthetic local payment test</h1><p>This is not Stripe acceptance. No real funds.</p><p>Amount: ${(s.amount_total / 100).toFixed(2)} USD</p><p>Synthetic processing fee: ${(scenarioFee/100).toFixed(2)} USD</p><form method="POST" action="http://127.0.0.1:3034/complete/${id}?fee=${scenarioFee}"><button>Simulate payment success</button></form>`,
+        `<h1>Synthetic local payment test</h1><p>This is not Stripe acceptance. No real funds.</p><p>Amount: ${(s.amount_total / 100).toFixed(2)} USD</p><p>Synthetic processing fee: ${(scenarioFee / 100).toFixed(2)} USD</p><form method="POST" action="http://127.0.0.1:3034/complete/${id}?fee=${scenarioFee}"><button>Simulate payment success</button></form>`,
       );
     }
     if (req.method === "POST" && u.pathname.startsWith("/complete/")) {
       const id = u.pathname.slice(10);
       x.transport.pay(id, {
-        fee:scenarioFee,
+        fee: scenarioFee,
         available: true,
       });
       const payload = JSON.stringify({
@@ -223,7 +243,7 @@ const env = {
   CAMPUS_SMTP_HOST: "127.0.0.1",
   CAMPUS_SMTP_PORT: "2527",
   CAMPUS_MAIL_FROM: "Campus Bounty <noreply@transaction.example.test>",
-  CAMPUS_PAYMENTS_ENABLED: "1",
+  CAMPUS_PAYMENTS_ENABLED: process.env.T2C_SCENARIO_PAYMENTS_DISABLED === "1" ? "0" : "1",
   CAMPUS_PAYMENT_ENVIRONMENT_ID: x.env.id,
   CAMPUS_STRIPE_PLATFORM_ACCOUNT_ID: x.env.platformAccountId,
   CAMPUS_PAYMENT_MODE: "sandbox",

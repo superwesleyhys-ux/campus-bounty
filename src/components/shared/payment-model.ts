@@ -152,6 +152,8 @@ export function reason(code: string) {
   return (
     (
       {
+        late_payment_compensation:
+          "Payment arrived while cancellation was being resolved. Funds and reserved inventory remain under review. Seller release is paused; no automatic refund or stock return is promised.",
         payment_configuration_changed_existing_intent:
           "Approved configuration changed. This saved intent keeps its original policy. A never-dispatched quote cannot be rebound; operator lifecycle review is required. Existing unknown payments must be checked or recovered using the original request.",
         payment_configuration_required:

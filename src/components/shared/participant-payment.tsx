@@ -24,9 +24,11 @@ export function ParticipantPayment({
   id,
   kind,
   orderPending = false,
+  orderState,
   onChanged,
 }: {
   orderPending?: boolean;
+  orderState?: string;
   account: string;
   id: string;
   kind: "agreement" | "order";
@@ -93,12 +95,15 @@ export function ParticipantPayment({
         <PaymentRecovery command={command} refresh={refresh} />
       </section>
     );
-  const disabled = command.blocked || !d.paymentEnabled;
+  const terminalOrder =
+    kind === "order" && ["cancelled", "expired"].includes(orderState ?? "");
+  const disabled = command.blocked || !d.paymentEnabled || terminalOrder;
   const collectionDisabled = disabled || !!d.configurationChangeBlocker;
   const policy = d.orderPolicy;
   const quoteAllowed =
-    fp?.allowedActions.includes("request_quote") ||
-    f!.allowedActions.includes("request_quote");
+    !terminalOrder &&
+    (fp?.allowedActions.includes("request_quote") ||
+      f!.allowedActions.includes("request_quote"));
   return (
     <section className="cb-panel" aria-label="Payments">
       <h2 ref={heading} tabIndex={-1}>
@@ -110,7 +115,15 @@ export function ParticipantPayment({
       {!d.paymentEnabled && (
         <p className="cb-alert">{reason("payments_unavailable")}</p>
       )}
+      {terminalOrder && (
+        <p className="cb-alert">
+          This reservation is {orderState}. No new payment is offered. Original
+          amounts remain historical; any received, held or unknown money still
+          requires its own status and recovery.
+        </p>
+      )}
       <FundingStatus
+        historicalRequirement={terminalOrder}
         feeReview={d.feeReview}
         funding={f!}
         people={d.people}
@@ -119,7 +132,7 @@ export function ParticipantPayment({
       {d.preparationBlocker && (
         <p className="cb-alert">{reason(d.preparationBlocker)}</p>
       )}
-      {!f!.obligationId && (
+      {!terminalOrder && !f!.obligationId && (
         <button
           className="cb-button"
           disabled={disabled || !!d.preparationBlocker}
@@ -165,7 +178,7 @@ export function ParticipantPayment({
             confirmed={policy.confirmations}
             account={account}
           />
-          {!policy.confirmations.includes(account) && (
+          {!terminalOrder && !policy.confirmations.includes(account) && (
             <ConsentButton
               identity={policy.policyDigest!}
               disabled={disabled}
@@ -191,7 +204,7 @@ export function ParticipantPayment({
           )}
         </details>
       )}
-      {fp?.allowedActions.includes("propose_fee_plan") && (
+      {!terminalOrder && fp?.allowedActions.includes("propose_fee_plan") && (
         <button
           className="cb-button"
           disabled={disabled}
@@ -246,7 +259,7 @@ export function ParticipantPayment({
             confirmed={fp.confirmedParticipantIds}
             account={account}
           />
-          {fp.allowedActions.includes("confirm_fee_plan") && (
+          {!terminalOrder && fp.allowedActions.includes("confirm_fee_plan") && (
             <ConsentButton
               identity={fp.digest!}
               disabled={disabled}
@@ -277,16 +290,19 @@ export function ParticipantPayment({
           {q ? "Review a current payment quote" : "Get current payment quote"}
         </button>
       )}
-      {q && f!.activeAttempt?.status === "succeeded" && (
+      {q && (terminalOrder || f!.activeAttempt?.status === "succeeded") && (
         <details>
           <summary>Original payment quote history</summary>
           <p>
-            Original quoted collection {cents(q.amountCents)}. That payment
-            succeeded; this historical quote does not authorize another charge.
+            Original quoted collection {cents(q.amountCents)}.{" "}
+            {terminalOrder
+              ? "This reservation has ended."
+              : "That payment succeeded."}{" "}
+            This historical quote does not authorize another charge.
           </p>
         </details>
       )}
-      {q && f!.activeAttempt?.status !== "succeeded" && (
+      {!terminalOrder && q && f!.activeAttempt?.status !== "succeeded" && (
         <div className="cb-alert">
           <h3>Explicit payer payment</h3>
           <p>

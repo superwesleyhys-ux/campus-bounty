@@ -174,20 +174,28 @@ export function FundingStatus({
   people,
   account,
   feeReview,
+  historicalRequirement = false,
 }: {
   funding: Funding;
   people: Person[];
   account: string;
   feeReview: PaymentView["feeReview"];
+  historicalRequirement?: boolean;
 }) {
   return (
     <>
       <h3>Verified money status</h3>
       <dl className="cb-totals">
         {[
-          ["Funding", reason(funding.coverage)],
+          [
+            historicalRequirement ? "Original funding coverage" : "Funding",
+            reason(funding.coverage),
+          ],
           ["Received", cents(funding.receivedCents)],
-          ["Required", cents(funding.requiredCents)],
+          [
+            historicalRequirement ? "Original quoted requirement" : "Required",
+            cents(funding.requiredCents),
+          ],
           ["Held available funds", cents(funding.heldCents)],
           ["Transferred to payment accounts", cents(funding.transferredCents)],
           ["Refunded", cents(funding.refundedCents)],

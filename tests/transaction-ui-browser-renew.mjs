@@ -254,6 +254,70 @@ try {
     "Renewed own hosted operation and safe requirements remain distinct from bank payout",
     { renewed, expiredProviderLinkNotSimulated: true },
   );
+  if (process.env.T2C_EXPIRED === "1") {
+    const started = Date.now();
+    let expired;
+    for (let n = 0; n < 70; n++) {
+      const view = await api(actor.p, "me/payment-account");
+      if (
+        view.operation?.operationId === renewed.operation.operationId &&
+        !view.operation.hostedUrl
+      ) {
+        expired = view;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+    assert(expired, "Synthetic link must expire on actual elapsed time");
+    await click(actor.p, "Check current payment status");
+    await actor.p
+      .getByRole("button", {
+        name: "Request or renew hosted onboarding",
+        exact: true,
+      })
+      .waitFor();
+    assert.equal(
+      await actor.p
+        .getByRole("button", {
+          name: "Continue my hosted onboarding",
+          exact: true,
+        })
+        .count(),
+      0,
+    );
+    await record("Actually elapsed local hosted-link expiry hides old link", {
+      elapsedMs: Date.now() - started,
+      expired,
+    });
+    const [response] = await Promise.all([
+      actor.p.waitForResponse(
+        (r) =>
+          r.request().method() === "POST" && r.url().endsWith("/onboarding"),
+      ),
+      click(actor.p, "Request or renew hosted onboarding"),
+    ]);
+    await record("Explicit renewal after local link expiry", {
+      status: response.status(),
+      receipt: await response.json(),
+      request: response.request().postDataJSON(),
+    });
+    assert.equal(response.status(), 200);
+    const fresh = await waitFor(async () => {
+      const view = await api(actor.p, "me/payment-account");
+      return view.operation?.hostedUrl &&
+        view.operation.operationId !== renewed.operation.operationId
+        ? view
+        : null;
+    });
+    await click(actor.p, "Check current payment status");
+    await actor.p
+      .getByRole("button", {
+        name: "Continue my hosted onboarding",
+        exact: true,
+      })
+      .waitFor();
+    await record("Fresh own hosted link after elapsed expiry", { fresh });
+  }
   await actor.p.screenshot({
     path: fileURLToPath(
       new URL(`browser-attempt${attempt}-renewed.png`, evidence),

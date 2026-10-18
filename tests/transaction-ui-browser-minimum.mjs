@@ -271,12 +271,13 @@ try {
   });
   await payer.c.request.post(
     "http://127.0.0.1:3034/complete/" +
-      new URL(initialAttempt.hostedUrl).pathname.split("/").at(-1)+"?fee=0",
+      new URL(initialAttempt.hostedUrl).pathname.split("/").at(-1) +
+      "?fee=0",
   );
   await waitFor(async () => {
     const d = await api(payer.p, `agreements/${gid}/funding`);
     return (
-      d.coverage === "covered" && d.feePlan?.restitutionStatus === "succeeded"
+      d.coverage === "covered" && d.actualFeeCents === "0" && d.feePlan?.restitutionStatus === "not_required"
     );
   });
   await record(
@@ -316,7 +317,9 @@ try {
     .fill("100.01");
   await click(payer.p, "Add future stage");
   await payer.p.getByLabel("Stage 2 title", { exact: true }).fill("Follow-up");
-  await payer.p.getByLabel("Stage 2 reward (USD)", { exact: true }).fill("0.01");
+  await payer.p
+    .getByLabel("Stage 2 reward (USD)", { exact: true })
+    .fill("0.01");
   await payer.p
     .getByLabel("Stage 2 deliverable", { exact: true })
     .fill("Follow-up report");
@@ -353,7 +356,47 @@ try {
   await ownConsent(payer.p, "Confirm my amendment financial terms");
   await recipient.p.reload();
   await ownConsent(recipient.p, "Confirm my amendment financial terms");
-  await payer.p.reload();await payer.p.getByText('This exact amount is below the supported payment minimum; no additional charge is invented.',{exact:true}).waitFor();const financial=await api(payer.p,`agreements/${gid}/amendments/${aid}/financial-plans`);const minimumPlan=financial.plans.at(-1);assert.equal(minimumPlan.plan.principalCents,1);assert.equal(minimumPlan.plan.chargeTotalCents,1);assert.equal(minimumPlan.plan.minimumChargeCents,50);assert.equal(minimumPlan.obligationId,null);assert.equal(await payer.p.getByRole('button',{name:'Review current amendment payment quote',exact:true}).count(),0);await record('Visible exact below-minimum amendment has no quote or additional charge',{financial});await payer.p.getByRole('heading',{name:'Amendment financial agreement',exact:true}).scrollIntoViewIfNeeded();await payer.p.screenshot({path:fileURLToPath(new URL(`browser-attempt${attempt}-minimum.png`,evidence))});console.log('Visible below-minimum amendment passed');
+  await payer.p.reload();
+  await payer.p
+    .getByText(
+      "This exact amount is below the supported payment minimum; no additional charge is invented.",
+      { exact: true },
+    )
+    .waitFor();
+  const financial = await api(
+    payer.p,
+    `agreements/${gid}/amendments/${aid}/financial-plans`,
+  );
+  const minimumPlan = financial.plans.at(-1);
+  assert.equal(minimumPlan.plan.principalCents, 1);
+  assert.equal(minimumPlan.plan.chargeTotalCents, 1);
+  assert.equal(minimumPlan.plan.minimumChargeCents, 50);
+  assert.equal(minimumPlan.obligationId, null);
+  assert.equal(
+    await payer.p
+      .getByRole("button", {
+        name: "Review current amendment payment quote",
+        exact: true,
+      })
+      .count(),
+    0,
+  );
+  await record(
+    "Visible exact below-minimum amendment has no quote or additional charge",
+    { financial },
+  );
+  await payer.p
+    .getByRole("heading", {
+      name: "Amendment financial agreement",
+      exact: true,
+    })
+    .scrollIntoViewIfNeeded();
+  await payer.p.screenshot({
+    path: fileURLToPath(
+      new URL(`browser-attempt${attempt}-minimum.png`, evidence),
+    ),
+  });
+  console.log("Visible below-minimum amendment passed");
 } catch (e) {
   for (const [i, c] of browser.contexts().entries())
     for (const [j, p] of c.pages().entries())

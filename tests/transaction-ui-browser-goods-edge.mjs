@@ -13,7 +13,8 @@ const origin = "http://127.0.0.1:3024",
   ),
   folder = new URL("../.data/backend/transaction-ui/", import.meta.url);
 const attempt = process.env.T2C_BROWSER_ATTEMPT || "edge01";
-const edge=process.env.T2C_EDGE;assert(["late","unknown"].includes(edge));
+const edge = process.env.T2C_EDGE;
+assert(["late", "unknown"].includes(edge));
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const checks = [];
 async function record(check, extra = {}) {
@@ -251,8 +252,13 @@ try {
     const v = await api(buyer.p, `orders/${order.id}/participant-payment`);
     return v.quote ? v : null;
   });
-  const scenario=async action=>{const r=await buyer.c.request.post('http://127.0.0.1:3034/scenario/'+action);assert(r.ok());};
-  await scenario(edge==='unknown'?'checkout-loss-on':'expiry-delay-on');
+  const scenario = async (action) => {
+    const r = await buyer.c.request.post(
+      "http://127.0.0.1:3034/scenario/" + action,
+    );
+    assert(r.ok());
+  };
+  await scenario(edge === "unknown" ? "checkout-loss-on" : "expiry-delay-on");
   await ownConsent(
     buyer.p,
     "Start payment of $100.00",
@@ -262,25 +268,112 @@ try {
     await click(buyer.p, "Check current payment status");
     return (
       (await api(buyer.p, `orders/${order.id}/payment`)).activeAttempt
-        ?.status === (edge==="unknown"?"unknown":"requires_action")
+        ?.status === (edge === "unknown" ? "unknown" : "requires_action")
     );
   });
   await buyer.p.reload();
   const before = await api(buyer.p, `orders/${order.id}/payment`);
-  assert.equal(before.activeAttempt.status,edge==='unknown'?'unknown':'requires_action');
-  const ownAttempt=await api(buyer.p,`payment-attempts/${before.activeAttempt.id}`);
-  await buyer.p.getByText(new RegExp('Current payment attempt: '+(edge==='unknown'?'unknown':'requires action'))).waitFor();
-  await click(buyer.p,'Cancel reservation');await buyer.p.getByRole('button',{name:'Confirm cancellation',exact:true}).focus();
-  const [cancelled]=await Promise.all([buyer.p.waitForResponse(r=>r.request().method()==='POST'&&r.url().endsWith('/cancellation')),buyer.p.keyboard.press('Enter')]);
-  const cancellation=await cancelled.json();await record('Visible cancellation with uncertain provider outcome',{edge,status:cancelled.status(),request:cancelled.request().postDataJSON(),cancellation,before,ownAttempt});assert.equal(cancelled.status(),200);
-  assert.equal((await api(seller.p,`products/${product.id}`)).stock,1);
-  if(edge==='unknown'){
-    const held=await api(buyer.p,`orders/${order.id}/payment`);assert.equal(held.activeAttempt.operationId,ownAttempt.operationId);assert.equal(held.activeAttempt.status,'unknown');await buyer.p.reload();await buyer.p.getByText(/Current payment attempt: unknown/).waitFor();await record('Unknown Checkout keeps original operation and reserved stock visible',{payment:held,stock:1});await buyer.p.screenshot({path:fileURLToPath(new URL(`browser-attempt${attempt}-unknown-stock.png`,evidence)),fullPage:true});
-    await scenario('checkout-loss-off');const terminal=await waitFor(async()=>{const d=await api(buyer.p,`orders/${order.id}/payment`);return !d.activeAttempt?d:null;});const finalAttempt=await api(buyer.p,`payment-attempts/${ownAttempt.attemptId}`);assert.equal(finalAttempt.operationId,ownAttempt.operationId);assert.equal(finalAttempt.status,'canceled');assert.equal((await api(seller.p,`products/${product.id}`)).stock,2);await record('Original unknown operation resolves unpaid and then returns stock',{payment:terminal,finalAttempt,stock:2});
-  }else{
-    const paid=await buyer.c.request.post('http://127.0.0.1:3034/complete/'+ownAttempt.sessionId+'?fee=0');assert(paid.ok());const held=await waitFor(async()=>{const d=await api(buyer.p,`orders/${order.id}/payment`);return d.coverage==='held'&&d.receivedCents==='10000'?d:null;});assert.equal(held.transferredCents,'0');assert.equal((await api(seller.p,`products/${product.id}`)).stock,1);await buyer.p.reload();await buyer.p.getByRole('heading',{name:'Verified money status',exact:true}).waitFor();assert(await buyer.p.getByText('held',{exact:true}).count());await record('Late signed synthetic payment remains held with stock reserved and no transfer',{payment:held,stock:1,synthetic:true});await buyer.p.screenshot({path:fileURLToPath(new URL(`browser-attempt${attempt}-late-held.png`,evidence)),fullPage:true});await scenario('expiry-delay-off');
+  assert.equal(
+    before.activeAttempt.status,
+    edge === "unknown" ? "unknown" : "requires_action",
+  );
+  const ownAttempt = await api(
+    buyer.p,
+    `payment-attempts/${before.activeAttempt.id}`,
+  );
+  await buyer.p
+    .getByText(
+      new RegExp(
+        "Current payment attempt: " +
+          (edge === "unknown" ? "unknown" : "requires action"),
+      ),
+    )
+    .waitFor();
+  await click(buyer.p, "Cancel reservation");
+  await buyer.p
+    .getByRole("button", { name: "Confirm cancellation", exact: true })
+    .focus();
+  const [cancelled] = await Promise.all([
+    buyer.p.waitForResponse(
+      (r) =>
+        r.request().method() === "POST" && r.url().endsWith("/cancellation"),
+    ),
+    buyer.p.keyboard.press("Enter"),
+  ]);
+  const cancellation = await cancelled.json();
+  await record("Visible cancellation with uncertain provider outcome", {
+    edge,
+    status: cancelled.status(),
+    request: cancelled.request().postDataJSON(),
+    cancellation,
+    before,
+    ownAttempt,
+  });
+  assert.equal(cancelled.status(), 200);
+  assert.equal((await api(seller.p, `products/${product.id}`)).stock, 1);
+  if (edge === "unknown") {
+    const held = await api(buyer.p, `orders/${order.id}/payment`);
+    assert.equal(held.activeAttempt.operationId, ownAttempt.operationId);
+    assert.equal(held.activeAttempt.status, "unknown");
+    await buyer.p.reload();
+    await buyer.p.getByText(/Current payment attempt: unknown/).waitFor();
+    await record(
+      "Unknown Checkout keeps original operation and reserved stock visible",
+      { payment: held, stock: 1 },
+    );
+    await buyer.p.screenshot({
+      path: fileURLToPath(
+        new URL(`browser-attempt${attempt}-unknown-stock.png`, evidence),
+      ),
+      fullPage: true,
+    });
+    await scenario("checkout-loss-off");
+    const terminal = await waitFor(async () => {
+      const d = await api(buyer.p, `orders/${order.id}/payment`);
+      return !d.activeAttempt ? d : null;
+    });
+    const finalAttempt = await api(
+      buyer.p,
+      `payment-attempts/${ownAttempt.attemptId}`,
+    );
+    assert.equal(finalAttempt.operationId, ownAttempt.operationId);
+    assert.equal(finalAttempt.status, "canceled");
+    assert.equal((await api(seller.p, `products/${product.id}`)).stock, 2);
+    await record(
+      "Original unknown operation resolves unpaid and then returns stock",
+      { payment: terminal, finalAttempt, stock: 2 },
+    );
+  } else {
+    const paid = await buyer.c.request.post(
+      "http://127.0.0.1:3034/complete/" + ownAttempt.sessionId + "?fee=0",
+    );
+    assert(paid.ok());
+    const held = await waitFor(async () => {
+      const d = await api(buyer.p, `orders/${order.id}/payment`);
+      return d.coverage === "held" && d.receivedCents === "10000" ? d : null;
+    });
+    assert.equal(held.transferredCents, "0");
+    assert.equal((await api(seller.p, `products/${product.id}`)).stock, 1);
+    await buyer.p.reload();
+    await buyer.p
+      .getByRole("heading", { name: "Verified money status", exact: true })
+      .waitFor();
+    assert(await buyer.p.getByText("held", { exact: true }).count());
+    await record(
+      "Late signed synthetic payment remains held with stock reserved and no transfer",
+      { payment: held, stock: 1, synthetic: true },
+    );
+    await buyer.p.screenshot({
+      path: fileURLToPath(
+        new URL(`browser-attempt${attempt}-late-held.png`, evidence),
+      ),
+      fullPage: true,
+    });
+    await scenario("expiry-delay-off");
   }
-  console.log('Visible '+edge+' cancellation and stock/liability checks passed');
+  console.log(
+    "Visible " + edge + " cancellation and stock/liability checks passed",
+  );
 } catch (e) {
   for (const [i, c] of browser.contexts().entries())
     for (const [j, p] of c.pages().entries())

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { historyDetailUrl } from "./history-pagination";
 import { useEffect, useRef } from "react";
-import { ApiError, useMutation, useResource } from "./api";
+import { useMutation, useResource } from "./api";
 import { ListingEventVersion } from "./listing-event-version";
 import { Conversation } from "./conversation";
 import { money, type Account, type Order } from "./types";
@@ -16,11 +16,6 @@ export function OrderDetail({ id, account }: { id: string; account: Account }) {
   const resource = useResource<Order>(`orders/${id}`),
     mutation = useMutation(account.id),
     order = resource.data;
-  const uncertain =
-    !!mutation.error &&
-    (!(mutation.error instanceof ApiError) ||
-      mutation.error.status === 0 ||
-      mutation.error.status >= 500);
   const clear = mutation.clear;
   useEffect(() => {
     if (order && ["cancelled", "expired"].includes(order.state)) clear();
@@ -45,6 +40,7 @@ export function OrderDetail({ id, account }: { id: string; account: Account }) {
         account={account.id}
         id={id}
         kind="order"
+        orderState={order.state}
         orderPending={order.state === "pending_payment" && !seller}
         onChanged={resource.reload}
       />
