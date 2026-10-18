@@ -61,8 +61,9 @@ export function useFulfillmentState(
           "The milestone changed while loading. Refresh to review its latest version.",
         );
       const submissionTermsId=latest?.submissionTermsId;
-      const paymentBinding=agreement.transaction?.bindings.find(b=>b.terms_id===submissionTermsId);
-      const priorPaymentBinding=before.transaction?.bindings.find(b=>b.terms_id===submissionTermsId);
+      const paymentBinding=agreement.transaction?.bindings?.find(b=>b.terms_id===submissionTermsId);
+      const priorPaymentBinding=before.transaction?.bindings?.find(b=>b.terms_id===submissionTermsId);
+      if(latest&&agreement.transaction?.releasePolicy&&!paymentBinding)throw new Error('The submitted work’s financial binding is unavailable. Refresh before accepting it.');
       if(JSON.stringify(paymentBinding)!==JSON.stringify(priorPaymentBinding))throw new Error('Financial terms changed while loading. Refresh the submitted work before reviewing it.');
       const next = {
         milestone,

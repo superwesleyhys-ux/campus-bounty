@@ -181,15 +181,7 @@ export function paymentModule(store, {paymentEnabled=false}={}) {
       ),
     openPaymentDispute: (a, kind, id, d, k) =>
       caseCommand(a, kind, id, d, k, disputeSchema, "money_open_dispute"),
-    paymentAccount: (actor) =>
-      read(actor, async (c) =>
-        checked(
-          c,
-          "SELECT campus.money_account() AS result",
-          [],
-          accountReadSchema,
-        ),
-      ),
+    paymentAccount: (actor) => read(actor,async c=>({...await checked(c,"SELECT campus.money_account() AS result",[],accountReadSchema),paymentEnabled})),
     onboardPaymentAccount: (actor, input, key) => {
       actionAvailable();
       const d = parse(onboardingSchema, input);

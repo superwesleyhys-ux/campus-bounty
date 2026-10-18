@@ -25,6 +25,7 @@ export function paymentPreparationModule(store, {paymentEnabled = false} = {}) {
       return store.as(actor, async c => {
         await account(c,actor);
         const result = (await moneySql(c,'SELECT campus.participant_payment_read($1,$2) result',[kind,id])).rows[0].result;
+        if(!paymentEnabled){result.funding.allowedActions=result.funding.allowedActions.filter(a=>['refresh','refresh_attempt','review_fee_revision'].includes(a));result.funding.blockedReasons=[...new Set([...result.funding.blockedReasons,'payments_unavailable'])];if(result.feePlan)result.feePlan.allowedActions=[];result.preparationBlocker='payments_unavailable';}
         return participantPaymentSchema.parse({...result, paymentEnabled});
       });
     },

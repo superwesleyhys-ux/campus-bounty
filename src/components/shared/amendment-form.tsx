@@ -116,7 +116,7 @@ export function AmendmentForm({
           </Field>
           <Field
             label="Proposed total reward (USD)"
-            help="Reward changes and stage allocation changes can be agreed, but cannot take effect until a real funds service is available. No payment is collected here."
+            help="Review the work change first. A supported increase requires separate personal financial consent and funding before activation."
           >
             <input
               required
