@@ -59,7 +59,7 @@ export function AgreementDetail({
         </p>
       )}
       <ReleaseDisclosure policy={agreement.transaction?.releasePolicy} />
-      <ParticipantPayment key={`${account.id}:${id}`} account={account.id} id={id} kind="agreement" onChanged={resource.reload} />
+      <ParticipantPayment key={`payment:${account.id}:${id}`} account={account.id} id={id} kind="agreement" onChanged={resource.reload} />
       {agreement.transaction?.allocations && (
         <details className="cb-panel">
           <summary>Signed recipient amounts</summary>

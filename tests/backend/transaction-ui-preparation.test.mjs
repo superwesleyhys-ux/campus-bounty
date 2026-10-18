@@ -50,8 +50,8 @@ test('funded team settles exact separate members and current configuration fee s
  const f=await isolated();try{
   await f.migrateThrough(22);const x=await configure(f);const s=await pay(f,x,await quoteAgreement(f,await agreement(f,{team:true,stages:[5000,5000]})));
   for(const who of s.members)await onboard(f,x,who);
-  await acceptStage(f,s,0);await x.worker.tick();await x.worker.tick();
-  const funding=await f.market.agreementFunding(s.P,s.g.id);assert(funding.payees.some(p=>p.transferredCents!=='0'));assert.equal(new Set(funding.payees.map(p=>p.memberId)).size,2);assert(funding.payees.some(p=>!p.releaseReady));
+  await acceptStage(f,s,0);for(let i=0;i<6;i++)await x.worker.tick();
+  const funding=await f.market.agreementFunding(s.P,s.g.id);assert(funding.payees.some(p=>p.transferredCents!=='0'));assert.equal(new Set(funding.payees.map(p=>p.memberId)).size,2);assert(funding.payees.some(p=>!p.releaseReady));for(const [who,amount] of [[s.C,2985],[s.M,1990]])assert.equal(funding.payees.filter(p=>p.memberId===who).reduce((n,p)=>n+Number(p.transferredCents),0),amount);
   const extra=await pay(f,x,await quoteAgreement(f,await agreement(f)),300);
   await configuration(f,x,{feeEstimate:{...x.config.feeEstimate,fixedCents:120}});
   const prep=await f.market.preparePaymentTerms(extra.P,'fee_revision',extra.q.obligationId,{},key());
@@ -61,5 +61,15 @@ test('funded team settles exact separate members and current configuration fee s
   const supplement=await f.market.startPaymentFeeSupplement(extra.P,revision.receipt.revisionId,{digest:revision.receipt.digest,acceptedAmountCents:revision.current.plan.supplementalAmountCents},key());
   for(let i=0;i<5;i++)await x.worker.dispatch();
   const status=await f.market.paymentFeeRevision(extra.P,extra.q.obligationId);assert.equal(status.attempt.status,'requires_action');assert.equal(status.attempt.id,supplement.receipt.attemptId);
+  const expected=(await f.store.workerTx(c=>c.query('SELECT campus.money_fee_supplement_expected($1,$2) AS result',[x.env.id,supplement.receipt.attemptId]))).rows[0].result;
+  x.transport.pay(expected.sessionId,{fee:120,available:true});const object=await x.adapter.retrieveCheckoutAndPayment(expected.sessionId);const {createPosting}=await import('../../backend/payments/posting.mjs');await createPosting(f.store).payment(expected,object);for(let i=0;i<8;i++)await x.worker.tick();
+  const settled=await f.market.paymentFeeRevision(extra.P,extra.q.obligationId);assert.equal(settled.state,'settled');assert.equal(settled.settledActualFeeCents,'420');assert.equal([...x.transport.refunds.values()].filter(r=>r.charge===object.charge.id).reduce((n,r)=>n+r.amount,0),6);
  }finally{await f.close();}
 });
+
+test('malformed or stale configuration fails closed; missing identity and unknown recipient operation stay explicit',async()=>{const f=await isolated();try{await f.migrateThrough(22);const x=await configure(f);const noIdentity=await f.user('Absent verified identity',{verified:false});await assert.rejects(f.market.preparePaymentRecipient(noIdentity,{},key()),{code:'verified_recipient_email_required'});const s=await agreement(f);
+await configuration(f,x,{feeEstimate:{...x.config.feeEstimate,rateBps:"1.5"}});await assert.rejects(f.market.preparePaymentTerms(s.P,'agreement',s.g.id,{},key()),{code:'fee_estimate_outside_approved_scope'});
+await configuration(f,x,{collectionProfileId:key()});await assert.rejects(f.market.preparePaymentTerms(s.P,'agreement',s.g.id,{},key()),{code:'payment_configuration_stale'});await configuration(f,x);
+await f.market.preparePaymentRecipient(s.C,{},key());const created=await f.market.onboardPaymentAccount(s.C,{expectedAccountRevision:0},key());let creations=0;const create=x.transport.client.v2.core.accounts.create;x.transport.client.v2.core.accounts.create=async(...args)=>{creations++;await create(...args);throw Error('Synthetic response loss after recipient creation');};await x.worker.dispatch();const unknown=await f.market.paymentAccount(s.C);assert.equal(unknown.operation.status,'unknown');
+await configuration(f,x,{feeEstimate:{...x.config.feeEstimate,fixedCents:120}});const preserved=await f.market.preparePaymentRecipient(s.C,{},key());assert.equal(preserved.receipt.operationId,created.receipt.operationId);assert.equal(preserved.receipt.preserved,true);assert.equal((await f.market.onboardPaymentAccount(s.C,{expectedAccountRevision:0},key())).receipt.operationId,created.receipt.operationId);assert.equal(creations,1);
+}finally{await f.close();}});

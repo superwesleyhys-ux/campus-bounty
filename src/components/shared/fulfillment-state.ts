@@ -60,11 +60,17 @@ export function useFulfillmentState(
         throw new Error(
           "The milestone changed while loading. Refresh to review its latest version.",
         );
+      const submissionTermsId=latest?.submissionTermsId;
+      const paymentBinding=agreement.transaction?.bindings.find(b=>b.terms_id===submissionTermsId);
+      const priorPaymentBinding=before.transaction?.bindings.find(b=>b.terms_id===submissionTermsId);
+      if(JSON.stringify(paymentBinding)!==JSON.stringify(priorPaymentBinding))throw new Error('Financial terms changed while loading. Refresh the submitted work before reviewing it.');
       const next = {
         milestone,
         submissions,
         reviews,
         agreementState: agreement.state,
+        transactionTermsId:paymentBinding?.transaction_terms_id,
+        transactionTermsRevision:paymentBinding?.transaction_terms_revision,
         effectiveTermsId: agreement.effectiveTerms?.id,
         effectiveRevision: agreement.effectiveTerms?.revision,
         binding: agreement.agreementTermsBinding,
@@ -120,6 +126,8 @@ export function useFulfillmentState(
   }, [refresh, revision, termsIdentity]);
   function base(value = snapshot): FulfillmentDraft {
     return {
+      transactionTermsId:value?.transactionTermsId,
+      transactionTermsRevision:value?.transactionTermsRevision,
       effectiveTermsId: value?.effectiveTermsId,
       effectiveRevision: value?.effectiveRevision,
       binding: value?.binding,

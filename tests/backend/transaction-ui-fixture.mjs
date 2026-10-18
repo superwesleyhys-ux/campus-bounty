@@ -119,7 +119,7 @@ export async function isolated(index = 0) {
       market: createMarket(store,{paymentEnabled:true}),
       migrateThrough,
       close,
-      async user(name) {
+      async user(name,{verified=true}={}) {
         const id = key();
         await owner.query(
           "INSERT INTO campus.users(id,display_name) VALUES($1,$2)",
@@ -129,7 +129,7 @@ export async function isolated(index = 0) {
           "INSERT INTO campus.affiliations VALUES($1,$2,'transaction.example.test',now()+interval '1 year',true)",
           [id, institution],
         );
-        await owner.query("INSERT INTO campus.identities VALUES($1,$2,'transaction.example.test',now())",[id+"@transaction.example.test",id]);
+        if(verified)await owner.query("INSERT INTO campus.identities VALUES($1,$2,'transaction.example.test',now())",[id+"@transaction.example.test",id]);
         return id;
       },
     };

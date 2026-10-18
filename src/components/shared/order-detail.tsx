@@ -41,7 +41,7 @@ export function OrderDetail({ id, account }: { id: string; account: Account }) {
         <strong className="cb-price">{money(order.total_cents)}</strong>
       </div>
       <ListingEventVersion kind="product" id={order.product_id} />
-      <ParticipantPayment key={`${account.id}:${id}`} account={account.id} id={id} kind="order" onChanged={resource.reload} />
+      <ParticipantPayment key={`payment:${account.id}:${id}`} account={account.id} id={id} kind="order" onChanged={resource.reload} />
       <div className="cb-detail-grid cb-conversation-detail">
         <section>
           <div className="cb-panel">

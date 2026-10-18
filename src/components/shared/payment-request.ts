@@ -2,6 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, request } from "./api";
 export type MoneyIntent = {account:string; resource:string; path:string; body:Record<string,unknown>; key:string; expected:Record<string,unknown>; required:string[]};
+function storedIntent(value:string|null,account:string,resource:string):MoneyIntent|null {
+ const p=value?JSON.parse(value):null;if(p===null)return null;
+ if(!p||p.account!==account||p.resource!==resource||typeof p.path!=='string'||!/^[-a-zA-Z0-9/]+$/.test(p.path)||p.path.startsWith('/')||typeof p.key!=='string'||!p.body||typeof p.body!=='object'||Array.isArray(p.body)||!p.expected||typeof p.expected!=='object'||Array.isArray(p.expected)||!Array.isArray(p.required)||!p.required.every((v:unknown)=>typeof v==='string'))throw Error('The saved request cannot be safely recovered. Keep it saved and contact support; do not start another payment.');return p;
+}
 export async function paymentIdentity(account:string, signal?:AbortSignal) {
   const me=await request<{id:string}>("me",{signal});
   if(me.id!==account) throw new ApiError("Your account changed. Sign in to the original account to recover this request.",403,"account_changed");
@@ -15,7 +19,7 @@ export function usePaymentRequest(account:string,resource:string) {
   const [pending,setPending]=useState<MoneyIntent|null>(null),[busy,setBusy]=useState(false),[ready,setReady]=useState(false),[error,setError]=useState<Error|null>(null);
   const generation=useRef(0),controller=useRef<AbortController|null>(null),running=useRef(false);
   useEffect(()=>{
-    const sync=()=>{try {const p=JSON.parse(localStorage.getItem(storage)||"null");setPending(p?.account===account&&p?.resource===resource?p:null);setReady(true);}catch{setError(Error("Durable payment recovery storage is unavailable. Enable local storage before starting a payment."));setReady(false);}};
+    const sync=()=>{try {const p=storedIntent(localStorage.getItem(storage),account,resource);setPending(p);setReady(true);}catch{setError(Error("Durable payment recovery storage is unavailable. Enable local storage before starting a payment."));setReady(false);}};
     const clearPrivate=()=>{generation.current++;controller.current?.abort();setError(null);setReady(false);};
     const changed=(e:StorageEvent)=>{if(e.key===storage)sync();if(e.key==="campus:auth-version")clearPrivate();};
     sync();window.addEventListener("storage",changed);window.addEventListener("campus:session-expired",clearPrivate);
@@ -29,8 +33,8 @@ export function usePaymentRequest(account:string,resource:string) {
       controller.current=new AbortController();
       try {
         await paymentIdentity(account,controller.current.signal);
-        const saved=JSON.parse(localStorage.getItem(storage)||"null");
-        if(saved){if(saved.account!==account||saved.resource!==resource)throw Error("Recovery identity mismatch.");p=saved;wasPending=true;}
+        const saved=storedIntent(localStorage.getItem(storage),account,resource);
+        if(saved){p=saved;wasPending=true;if(path)throw Error("Another request is already saved. Use Recover the same request before starting a different action.");}
         else {if(!path)return;p={account,resource,path,body:structuredClone(body),key:crypto.randomUUID(),expected:structuredClone(expected),required};}
         if(turn!==generation.current||!p)return;
         localStorage.setItem(storage,JSON.stringify(p));setPending(p);

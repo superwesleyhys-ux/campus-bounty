@@ -41,6 +41,7 @@ export function MilestonePanel({
   const outdated =
     !!draft &&
     (draft.revision !== m.revision ||
+      (publisher&&(draft.transactionTermsId!==snapshot?.transactionTermsId||draft.transactionTermsRevision!==snapshot?.transactionTermsRevision)) ||
       (!publisher &&
         (draft.effectiveTermsId !== snapshot?.effectiveTermsId ||
           draft.effectiveRevision !== snapshot?.effectiveRevision ||
@@ -120,6 +121,7 @@ export function MilestonePanel({
                   submissionTermsRevision: base.submissionTermsRevision,
                 }
               : {}),
+            ...(operation==='accepted'&&base.transactionTermsId?{transactionTermsId:base.transactionTermsId,transactionTermsRevision:base.transactionTermsRevision}:{}),
             submissionId: base.submissionId,
             expectedVersion: base.version,
             expectedRevision: base.revision,
