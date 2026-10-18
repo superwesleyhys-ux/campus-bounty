@@ -42024,6 +42024,44 @@
                       "type": "string",
                       "const": "amendment_financial_plan_v1"
                     },
+                    "billingProfile": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "version": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "inline",
+                            "standalone",
+                            "unknown"
+                          ]
+                        },
+                        "contract": {
+                          "$ref": "#/components/schemas/AmendmentFinancialRead/$defs/__schema0"
+                        },
+                        "digest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "version",
+                        "mode",
+                        "contract",
+                        "digest"
+                      ],
+                      "additionalProperties": false
+                    },
                     "planId": {
                       "type": "string",
                       "format": "uuid",
@@ -42094,7 +42132,7 @@
                       "maximum": 9007199254740991
                     },
                     "policy": {
-                      "$ref": "#/components/schemas/AmendmentFinancialRead/$defs/__schema0"
+                      "$ref": "#/components/schemas/AmendmentFinancialRead/$defs/__schema1"
                     },
                     "collectionProfileId": {
                       "type": "string",
@@ -42399,6 +42437,7 @@
                   },
                   "required": [
                     "format",
+                    "billingProfile",
                     "planId",
                     "agreementId",
                     "amendmentId",
@@ -42478,6 +42517,53 @@
                     },
                     "held": {
                       "type": "boolean"
+                    },
+                    "currentQuote": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "quoteId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "quoteDigest": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            },
+                            "expiresAt": {
+                              "type": "string"
+                            },
+                            "amountCents": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "currency": {
+                              "type": "string",
+                              "const": "USD"
+                            },
+                            "obligationRevision": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "quoteId",
+                            "quoteDigest",
+                            "expiresAt",
+                            "amountCents",
+                            "currency",
+                            "obligationRevision"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "holdReasons": {
                       "type": "array",
@@ -42608,6 +42694,7 @@
                     "allocatedAmountCents",
                     "suspenseAmountCents",
                     "held",
+                    "currentQuote",
                     "holdReasons",
                     "attempts",
                     "receipts"
@@ -42634,6 +42721,7 @@
                       "refresh",
                       "confirm_financial_plan",
                       "request_quote",
+                      "request_payment_attempt",
                       "assess",
                       "activate",
                       "request_cancellation"
@@ -42844,6 +42932,37 @@
                 },
                 "additionalProperties": {
                   "$ref": "#/components/schemas/AmendmentFinancialRead/$defs/__schema0"
+                }
+              }
+            ]
+          },
+          "__schema1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AmendmentFinancialRead/$defs/__schema1"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/AmendmentFinancialRead/$defs/__schema1"
                 }
               }
             ]
@@ -43408,6 +43527,44 @@
                           "type": "string",
                           "const": "amendment_financial_plan_v1"
                         },
+                        "billingProfile": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "version": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "inline",
+                                "standalone",
+                                "unknown"
+                              ]
+                            },
+                            "contract": {
+                              "$ref": "#/components/schemas/AmendmentFinancialResponse_propose/$defs/__schema0"
+                            },
+                            "digest": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "version",
+                            "mode",
+                            "contract",
+                            "digest"
+                          ],
+                          "additionalProperties": false
+                        },
                         "planId": {
                           "type": "string",
                           "format": "uuid",
@@ -43478,7 +43635,7 @@
                           "maximum": 9007199254740991
                         },
                         "policy": {
-                          "$ref": "#/components/schemas/AmendmentFinancialResponse_propose/$defs/__schema0"
+                          "$ref": "#/components/schemas/AmendmentFinancialResponse_propose/$defs/__schema1"
                         },
                         "collectionProfileId": {
                           "type": "string",
@@ -43783,6 +43940,7 @@
                       },
                       "required": [
                         "format",
+                        "billingProfile",
                         "planId",
                         "agreementId",
                         "amendmentId",
@@ -43862,6 +44020,53 @@
                         },
                         "held": {
                           "type": "boolean"
+                        },
+                        "currentQuote": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "quoteId": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "quoteDigest": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "expiresAt": {
+                                  "type": "string"
+                                },
+                                "amountCents": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "const": "USD"
+                                },
+                                "obligationRevision": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "quoteId",
+                                "quoteDigest",
+                                "expiresAt",
+                                "amountCents",
+                                "currency",
+                                "obligationRevision"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "holdReasons": {
                           "type": "array",
@@ -43992,6 +44197,7 @@
                         "allocatedAmountCents",
                         "suspenseAmountCents",
                         "held",
+                        "currentQuote",
                         "holdReasons",
                         "attempts",
                         "receipts"
@@ -44018,6 +44224,7 @@
                           "refresh",
                           "confirm_financial_plan",
                           "request_quote",
+                          "request_payment_attempt",
                           "assess",
                           "activate",
                           "request_cancellation"
@@ -44235,6 +44442,37 @@
                 },
                 "additionalProperties": {
                   "$ref": "#/components/schemas/AmendmentFinancialResponse_propose/$defs/__schema0"
+                }
+              }
+            ]
+          },
+          "__schema1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AmendmentFinancialResponse_propose/$defs/__schema1"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/AmendmentFinancialResponse_propose/$defs/__schema1"
                 }
               }
             ]
@@ -44804,6 +45042,44 @@
                           "type": "string",
                           "const": "amendment_financial_plan_v1"
                         },
+                        "billingProfile": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "version": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "inline",
+                                "standalone",
+                                "unknown"
+                              ]
+                            },
+                            "contract": {
+                              "$ref": "#/components/schemas/AmendmentFinancialResponse_confirm/$defs/__schema0"
+                            },
+                            "digest": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "version",
+                            "mode",
+                            "contract",
+                            "digest"
+                          ],
+                          "additionalProperties": false
+                        },
                         "planId": {
                           "type": "string",
                           "format": "uuid",
@@ -44874,7 +45150,7 @@
                           "maximum": 9007199254740991
                         },
                         "policy": {
-                          "$ref": "#/components/schemas/AmendmentFinancialResponse_confirm/$defs/__schema0"
+                          "$ref": "#/components/schemas/AmendmentFinancialResponse_confirm/$defs/__schema1"
                         },
                         "collectionProfileId": {
                           "type": "string",
@@ -45179,6 +45455,7 @@
                       },
                       "required": [
                         "format",
+                        "billingProfile",
                         "planId",
                         "agreementId",
                         "amendmentId",
@@ -45258,6 +45535,53 @@
                         },
                         "held": {
                           "type": "boolean"
+                        },
+                        "currentQuote": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "quoteId": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "quoteDigest": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "expiresAt": {
+                                  "type": "string"
+                                },
+                                "amountCents": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "const": "USD"
+                                },
+                                "obligationRevision": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "quoteId",
+                                "quoteDigest",
+                                "expiresAt",
+                                "amountCents",
+                                "currency",
+                                "obligationRevision"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "holdReasons": {
                           "type": "array",
@@ -45388,6 +45712,7 @@
                         "allocatedAmountCents",
                         "suspenseAmountCents",
                         "held",
+                        "currentQuote",
                         "holdReasons",
                         "attempts",
                         "receipts"
@@ -45414,6 +45739,7 @@
                           "refresh",
                           "confirm_financial_plan",
                           "request_quote",
+                          "request_payment_attempt",
                           "assess",
                           "activate",
                           "request_cancellation"
@@ -45631,6 +45957,37 @@
                 },
                 "additionalProperties": {
                   "$ref": "#/components/schemas/AmendmentFinancialResponse_confirm/$defs/__schema0"
+                }
+              }
+            ]
+          },
+          "__schema1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AmendmentFinancialResponse_confirm/$defs/__schema1"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/AmendmentFinancialResponse_confirm/$defs/__schema1"
                 }
               }
             ]
@@ -46210,6 +46567,44 @@
                           "type": "string",
                           "const": "amendment_financial_plan_v1"
                         },
+                        "billingProfile": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "version": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "inline",
+                                "standalone",
+                                "unknown"
+                              ]
+                            },
+                            "contract": {
+                              "$ref": "#/components/schemas/AmendmentFinancialResponse_quote/$defs/__schema0"
+                            },
+                            "digest": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "version",
+                            "mode",
+                            "contract",
+                            "digest"
+                          ],
+                          "additionalProperties": false
+                        },
                         "planId": {
                           "type": "string",
                           "format": "uuid",
@@ -46280,7 +46675,7 @@
                           "maximum": 9007199254740991
                         },
                         "policy": {
-                          "$ref": "#/components/schemas/AmendmentFinancialResponse_quote/$defs/__schema0"
+                          "$ref": "#/components/schemas/AmendmentFinancialResponse_quote/$defs/__schema1"
                         },
                         "collectionProfileId": {
                           "type": "string",
@@ -46585,6 +46980,7 @@
                       },
                       "required": [
                         "format",
+                        "billingProfile",
                         "planId",
                         "agreementId",
                         "amendmentId",
@@ -46664,6 +47060,53 @@
                         },
                         "held": {
                           "type": "boolean"
+                        },
+                        "currentQuote": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "quoteId": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "quoteDigest": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "expiresAt": {
+                                  "type": "string"
+                                },
+                                "amountCents": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "const": "USD"
+                                },
+                                "obligationRevision": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "quoteId",
+                                "quoteDigest",
+                                "expiresAt",
+                                "amountCents",
+                                "currency",
+                                "obligationRevision"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "holdReasons": {
                           "type": "array",
@@ -46794,6 +47237,7 @@
                         "allocatedAmountCents",
                         "suspenseAmountCents",
                         "held",
+                        "currentQuote",
                         "holdReasons",
                         "attempts",
                         "receipts"
@@ -46820,6 +47264,7 @@
                           "refresh",
                           "confirm_financial_plan",
                           "request_quote",
+                          "request_payment_attempt",
                           "assess",
                           "activate",
                           "request_cancellation"
@@ -47037,6 +47482,37 @@
                 },
                 "additionalProperties": {
                   "$ref": "#/components/schemas/AmendmentFinancialResponse_quote/$defs/__schema0"
+                }
+              }
+            ]
+          },
+          "__schema1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AmendmentFinancialResponse_quote/$defs/__schema1"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/AmendmentFinancialResponse_quote/$defs/__schema1"
                 }
               }
             ]
@@ -47616,6 +48092,44 @@
                           "type": "string",
                           "const": "amendment_financial_plan_v1"
                         },
+                        "billingProfile": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "version": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "inline",
+                                "standalone",
+                                "unknown"
+                              ]
+                            },
+                            "contract": {
+                              "$ref": "#/components/schemas/AmendmentFinancialResponse_assess/$defs/__schema0"
+                            },
+                            "digest": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "version",
+                            "mode",
+                            "contract",
+                            "digest"
+                          ],
+                          "additionalProperties": false
+                        },
                         "planId": {
                           "type": "string",
                           "format": "uuid",
@@ -47686,7 +48200,7 @@
                           "maximum": 9007199254740991
                         },
                         "policy": {
-                          "$ref": "#/components/schemas/AmendmentFinancialResponse_assess/$defs/__schema0"
+                          "$ref": "#/components/schemas/AmendmentFinancialResponse_assess/$defs/__schema1"
                         },
                         "collectionProfileId": {
                           "type": "string",
@@ -47991,6 +48505,7 @@
                       },
                       "required": [
                         "format",
+                        "billingProfile",
                         "planId",
                         "agreementId",
                         "amendmentId",
@@ -48070,6 +48585,53 @@
                         },
                         "held": {
                           "type": "boolean"
+                        },
+                        "currentQuote": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "quoteId": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "quoteDigest": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "expiresAt": {
+                                  "type": "string"
+                                },
+                                "amountCents": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "const": "USD"
+                                },
+                                "obligationRevision": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "quoteId",
+                                "quoteDigest",
+                                "expiresAt",
+                                "amountCents",
+                                "currency",
+                                "obligationRevision"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "holdReasons": {
                           "type": "array",
@@ -48200,6 +48762,7 @@
                         "allocatedAmountCents",
                         "suspenseAmountCents",
                         "held",
+                        "currentQuote",
                         "holdReasons",
                         "attempts",
                         "receipts"
@@ -48226,6 +48789,7 @@
                           "refresh",
                           "confirm_financial_plan",
                           "request_quote",
+                          "request_payment_attempt",
                           "assess",
                           "activate",
                           "request_cancellation"
@@ -48443,6 +49007,37 @@
                 },
                 "additionalProperties": {
                   "$ref": "#/components/schemas/AmendmentFinancialResponse_assess/$defs/__schema0"
+                }
+              }
+            ]
+          },
+          "__schema1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AmendmentFinancialResponse_assess/$defs/__schema1"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/AmendmentFinancialResponse_assess/$defs/__schema1"
                 }
               }
             ]
@@ -49067,6 +49662,44 @@
                           "type": "string",
                           "const": "amendment_financial_plan_v1"
                         },
+                        "billingProfile": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "version": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "inline",
+                                "standalone",
+                                "unknown"
+                              ]
+                            },
+                            "contract": {
+                              "$ref": "#/components/schemas/AmendmentFinancialResponse_activate/$defs/__schema0"
+                            },
+                            "digest": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "version",
+                            "mode",
+                            "contract",
+                            "digest"
+                          ],
+                          "additionalProperties": false
+                        },
                         "planId": {
                           "type": "string",
                           "format": "uuid",
@@ -49137,7 +49770,7 @@
                           "maximum": 9007199254740991
                         },
                         "policy": {
-                          "$ref": "#/components/schemas/AmendmentFinancialResponse_activate/$defs/__schema0"
+                          "$ref": "#/components/schemas/AmendmentFinancialResponse_activate/$defs/__schema1"
                         },
                         "collectionProfileId": {
                           "type": "string",
@@ -49442,6 +50075,7 @@
                       },
                       "required": [
                         "format",
+                        "billingProfile",
                         "planId",
                         "agreementId",
                         "amendmentId",
@@ -49521,6 +50155,53 @@
                         },
                         "held": {
                           "type": "boolean"
+                        },
+                        "currentQuote": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "quoteId": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "quoteDigest": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "expiresAt": {
+                                  "type": "string"
+                                },
+                                "amountCents": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "const": "USD"
+                                },
+                                "obligationRevision": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "quoteId",
+                                "quoteDigest",
+                                "expiresAt",
+                                "amountCents",
+                                "currency",
+                                "obligationRevision"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "holdReasons": {
                           "type": "array",
@@ -49651,6 +50332,7 @@
                         "allocatedAmountCents",
                         "suspenseAmountCents",
                         "held",
+                        "currentQuote",
                         "holdReasons",
                         "attempts",
                         "receipts"
@@ -49677,6 +50359,7 @@
                           "refresh",
                           "confirm_financial_plan",
                           "request_quote",
+                          "request_payment_attempt",
                           "assess",
                           "activate",
                           "request_cancellation"
@@ -49894,6 +50577,37 @@
                 },
                 "additionalProperties": {
                   "$ref": "#/components/schemas/AmendmentFinancialResponse_activate/$defs/__schema0"
+                }
+              }
+            ]
+          },
+          "__schema1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AmendmentFinancialResponse_activate/$defs/__schema1"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/AmendmentFinancialResponse_activate/$defs/__schema1"
                 }
               }
             ]
@@ -50463,6 +51177,44 @@
                           "type": "string",
                           "const": "amendment_financial_plan_v1"
                         },
+                        "billingProfile": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "version": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "inline",
+                                "standalone",
+                                "unknown"
+                              ]
+                            },
+                            "contract": {
+                              "$ref": "#/components/schemas/AmendmentFinancialResponse_cancel/$defs/__schema0"
+                            },
+                            "digest": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "version",
+                            "mode",
+                            "contract",
+                            "digest"
+                          ],
+                          "additionalProperties": false
+                        },
                         "planId": {
                           "type": "string",
                           "format": "uuid",
@@ -50533,7 +51285,7 @@
                           "maximum": 9007199254740991
                         },
                         "policy": {
-                          "$ref": "#/components/schemas/AmendmentFinancialResponse_cancel/$defs/__schema0"
+                          "$ref": "#/components/schemas/AmendmentFinancialResponse_cancel/$defs/__schema1"
                         },
                         "collectionProfileId": {
                           "type": "string",
@@ -50838,6 +51590,7 @@
                       },
                       "required": [
                         "format",
+                        "billingProfile",
                         "planId",
                         "agreementId",
                         "amendmentId",
@@ -50917,6 +51670,53 @@
                         },
                         "held": {
                           "type": "boolean"
+                        },
+                        "currentQuote": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "quoteId": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "quoteDigest": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "expiresAt": {
+                                  "type": "string"
+                                },
+                                "amountCents": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "const": "USD"
+                                },
+                                "obligationRevision": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "quoteId",
+                                "quoteDigest",
+                                "expiresAt",
+                                "amountCents",
+                                "currency",
+                                "obligationRevision"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "holdReasons": {
                           "type": "array",
@@ -51047,6 +51847,7 @@
                         "allocatedAmountCents",
                         "suspenseAmountCents",
                         "held",
+                        "currentQuote",
                         "holdReasons",
                         "attempts",
                         "receipts"
@@ -51073,6 +51874,7 @@
                           "refresh",
                           "confirm_financial_plan",
                           "request_quote",
+                          "request_payment_attempt",
                           "assess",
                           "activate",
                           "request_cancellation"
@@ -51290,6 +52092,37 @@
                 },
                 "additionalProperties": {
                   "$ref": "#/components/schemas/AmendmentFinancialResponse_cancel/$defs/__schema0"
+                }
+              }
+            ]
+          },
+          "__schema1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AmendmentFinancialResponse_cancel/$defs/__schema1"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/AmendmentFinancialResponse_cancel/$defs/__schema1"
                 }
               }
             ]
