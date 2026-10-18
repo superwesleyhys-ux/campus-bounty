@@ -1307,8 +1307,9 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1
             }
           },
           {
@@ -1498,8 +1499,9 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1
             }
           },
           {
@@ -1689,8 +1691,9 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1
             }
           },
           {
@@ -1880,8 +1883,9 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1
             }
           },
           {
@@ -2071,8 +2075,9 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1
             }
           },
           {

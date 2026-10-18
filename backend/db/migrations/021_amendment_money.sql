@@ -351,6 +351,96 @@ BEGIN
  INSERT INTO campus.amendment_fee_attribution_links VALUES(eid,semantic,pid,a.obligation_id,cashid,globalid,lotid) ON CONFLICT DO NOTHING;RETURN ok;
 END $$;
 REVOKE ALL ON FUNCTION campus.money_fee_attribute(uuid,text) FROM PUBLIC,campus_app,campus_auth;GRANT EXECUTE ON FUNCTION campus.money_fee_attribute(uuid,text) TO campus_worker;
+-- A parsed report's exact semantic set is evidence, including a genuinely empty set.
+-- Only the existing authenticated report-ingestion purpose function writes this sidecar.
+CREATE TABLE campus.amendment_fee_report_contents (
+ environment_id uuid NOT NULL, run_id text NOT NULL, content_digest text NOT NULL,
+ semantic_ids jsonb NOT NULL CHECK(jsonb_typeof(semantic_ids)='array'),
+ PRIMARY KEY(environment_id,run_id),
+ FOREIGN KEY(environment_id,run_id) REFERENCES campus.payment_fee_report_artifacts
+);
+ALTER TABLE campus.amendment_fee_report_contents ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON campus.amendment_fee_report_contents FROM PUBLIC,campus_app,campus_auth,campus_worker;
+CREATE TRIGGER immutable_money BEFORE UPDATE OR DELETE ON campus.amendment_fee_report_contents FOR EACH ROW EXECUTE FUNCTION campus.money_immutable();
+
+-- Complete balance coverage is shared by the foreign partition and own standalone J2.
+-- A source string locates a journal only AFTER typed attribution and ownership resolve it.
+CREATE FUNCTION campus.amend_fee_balance_complete(p campus.amendment_financial_plans,bid text) RETURNS boolean
+LANGUAGE plpgsql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE cash campus.payment_fee_cash_facts; item record; body jsonb;
+ profile campus.payment_billing_profiles; obligation campus.funding_obligations;
+ own_obligation uuid; global_journal uuid; lot_journal uuid; total bigint:=0; items integer:=0;
+BEGIN
+ SELECT obligation_id INTO own_obligation FROM campus.amendment_funding_origins WHERE plan_id=p.id;
+ SELECT * INTO cash FROM campus.payment_fee_cash_facts WHERE environment_id=p.environment_id AND balance_id=bid;
+ IF cash.balance_id IS NULL OR cash.net_cents>=0 OR cash.provider_type<>'stripe_fee'
+  OR cash.net_cents<>cash.amount_cents-cash.fee_cents
+  OR NOT EXISTS(SELECT 1 FROM campus.ledger_journals j WHERE j.id=cash.journal_id
+    AND j.environment_id=p.environment_id AND j.lot_id IS NULL AND j.source_effect='later_fee_cash:'||bid)
+  OR campus.amend_entries(cash.journal_id) IS DISTINCT FROM campus.amend_expected_entries(jsonb_build_array(
+    jsonb_build_object('account','cash','credit',-cash.net_cents),
+    jsonb_build_object('account','fee_expense','debit',-cash.net_cents)))
+ THEN RETURN false; END IF;
+ FOR item IN
+  SELECT 'original' kind,a.semantic_id,a.balance_id,a.obligation_id,a.lot_id,a.charge_id,a.amount_cents,a.profile_id,a.receipt_fact_id source_id
+   FROM campus.payment_fee_attributions a WHERE a.environment_id=p.environment_id AND a.balance_id=bid
+  UNION ALL
+  SELECT 'supplement',a.semantic_id,a.balance_id,a.obligation_id,a.lot_id,a.charge_id,a.amount_cents,a.profile_id,a.attempt_id
+   FROM campus.payment_fee_supplement_attributions a WHERE a.environment_id=p.environment_id AND a.balance_id=bid
+ LOOP
+  items:=items+1;
+  SELECT rr.body INTO body FROM campus.payment_fee_report_rows rr WHERE rr.environment_id=p.environment_id AND rr.semantic_id=item.semantic_id;
+  SELECT * INTO obligation FROM campus.funding_obligations WHERE id=item.obligation_id;
+  SELECT * INTO profile FROM campus.payment_billing_profiles WHERE id=item.profile_id;
+  IF body IS NULL OR obligation.environment_id IS DISTINCT FROM p.environment_id
+   OR (obligation.agreement_id=p.agreement_id AND (item.kind<>'original' OR item.obligation_id IS DISTINCT FROM own_obligation))
+   OR NOT EXISTS(SELECT 1 FROM campus.funding_lots l WHERE l.id=item.lot_id AND l.environment_id=p.environment_id AND l.obligation_id=item.obligation_id)
+   OR profile.environment_id IS DISTINCT FROM p.environment_id
+   OR profile.platform_account_id IS DISTINCT FROM (SELECT platform_account_id FROM campus.payment_environments WHERE id=p.environment_id)
+   OR NOT EXISTS(SELECT 1 FROM campus.payment_billing_bindings b WHERE b.obligation_id=item.obligation_id AND b.environment_id=p.environment_id AND b.profile_id=profile.id)
+   OR (profile.contract->>'kind' LIKE 'synthetic_%' AND (SELECT mode FROM campus.payment_environments WHERE id=p.environment_id)<>'sandbox')
+   OR NOT coalesce(profile.contract->'processingFeatures','[]') @> jsonb_build_array(jsonb_build_object('product',body->>'product','feature',body->>'feature'))
+   OR body->>'semanticId' IS DISTINCT FROM item.semantic_id OR body->>'balanceId' IS DISTINCT FROM bid
+   OR body->>'incurredBy' IS DISTINCT FROM item.charge_id OR body->>'incurredByType' IS DISTINCT FROM 'charge'
+   OR body->>'settledVia' IS DISTINCT FROM 'balance' OR body->>'currency' IS DISTINCT FROM 'usd'
+   OR (body->>'amountCents')::bigint IS DISTINCT FROM item.amount_cents OR (body->>'taxCents')::bigint IS DISTINCT FROM 0
+   OR item.amount_cents<0
+  THEN RETURN false; END IF;
+  IF item.kind='original' THEN
+   IF NOT EXISTS(SELECT 1 FROM campus.payment_receipt_facts r WHERE r.id=item.source_id AND r.environment_id=p.environment_id
+     AND r.obligation_id=item.obligation_id AND r.lot_id=item.lot_id AND r.charge_id=item.charge_id
+     AND (item.obligation_id IS DISTINCT FROM own_obligation OR r.disposition='allocated'))
+    OR NOT EXISTS(SELECT 1 FROM campus.money_receipt_source(p.environment_id,item.charge_id) src WHERE src.receipt_fact_id=item.source_id AND src.obligation_id=item.obligation_id AND src.lot_id=item.lot_id)
+    OR EXISTS(SELECT 1 FROM campus.payment_fee_supplement_attributions a WHERE a.environment_id=p.environment_id AND a.semantic_id=item.semantic_id)
+    OR EXISTS(SELECT 1 FROM campus.payment_fee_supplement_receipts r WHERE r.environment_id=p.environment_id AND r.charge_id=item.charge_id)
+   THEN RETURN false; END IF;
+  ELSE
+   IF NOT EXISTS(SELECT 1 FROM campus.payment_fee_supplement_receipts r WHERE r.attempt_id=item.source_id AND r.environment_id=p.environment_id
+     AND r.obligation_id=item.obligation_id AND r.lot_id=item.lot_id AND r.charge_id=item.charge_id)
+    OR EXISTS(SELECT 1 FROM campus.payment_fee_attributions a WHERE a.environment_id=p.environment_id AND a.semantic_id=item.semantic_id)
+    OR EXISTS(SELECT 1 FROM campus.payment_receipt_facts r WHERE r.environment_id=p.environment_id AND r.charge_id=item.charge_id)
+   THEN RETURN false; END IF;
+  END IF;
+  IF EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts c WHERE c.environment_id=p.environment_id AND c.identity IN('row:'||item.semantic_id,'balance:'||bid)) THEN RETURN false; END IF;
+  SELECT j.id INTO global_journal FROM campus.ledger_journals j WHERE j.environment_id=p.environment_id AND j.lot_id IS NULL AND j.source_effect='fee_attribution_global:'||item.semantic_id;
+  SELECT j.id INTO lot_journal FROM campus.ledger_journals j WHERE j.environment_id=p.environment_id AND j.lot_id=item.lot_id AND j.source_effect='fee_attribution_lot:'||item.semantic_id;
+  IF (item.amount_cents=0 AND (global_journal IS NOT NULL OR lot_journal IS NOT NULL))
+   OR (item.amount_cents>0 AND (global_journal IS NULL OR lot_journal IS NULL))
+   OR campus.amend_entries(global_journal) IS DISTINCT FROM campus.amend_expected_entries(jsonb_build_array(
+     jsonb_build_object('account','fee_expense','credit',item.amount_cents),jsonb_build_object('account','network_exposure','debit',item.amount_cents)))
+   OR campus.amend_entries(lot_journal) IS DISTINCT FROM campus.amend_expected_entries(jsonb_build_array(
+     jsonb_build_object('account','fee_expense','debit',item.amount_cents),jsonb_build_object('account','network_exposure','credit',item.amount_cents)))
+  THEN RETURN false; END IF;
+  total:=total+item.amount_cents;
+ END LOOP;
+ -- Unknown rows, including zero rows, are not excused by other rows covering the debit.
+ RETURN total=-cash.net_cents AND items>0 AND NOT EXISTS(
+  SELECT 1 FROM campus.payment_fee_report_rows rr WHERE rr.environment_id=p.environment_id AND rr.body->>'balanceId'=bid
+   AND NOT EXISTS(SELECT 1 FROM campus.payment_fee_attributions a WHERE a.environment_id=p.environment_id AND a.semantic_id=rr.semantic_id AND a.balance_id=bid)
+   AND NOT EXISTS(SELECT 1 FROM campus.payment_fee_supplement_attributions a WHERE a.environment_id=p.environment_id AND a.semantic_id=rr.semantic_id AND a.balance_id=bid));
+END $$;
+REVOKE ALL ON FUNCTION campus.amend_fee_balance_complete(campus.amendment_financial_plans,text) FROM PUBLIC,campus_app,campus_auth,campus_worker;
+
 CREATE FUNCTION campus.amend_standalone_evidence(p campus.amendment_financial_plans) RETURNS jsonb LANGUAGE plpgsql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
 DECLARE o campus.funding_obligations;f campus.funding_allocations;s campus.payment_fee_settlements;profile campus.payment_billing_profiles;closure campus.payment_synthetic_fee_closures;artifact campus.payment_fee_report_artifacts;
  a campus.payment_fee_attributions;link campus.amendment_fee_attribution_links;cash campus.payment_fee_cash_facts;rowbody jsonb;ids jsonb;total bigint:=0;lotids uuid[]:='{}';globalids uuid[]:='{}';cashids uuid[]:='{}';
@@ -372,7 +462,7 @@ BEGIN
   SELECT * INTO cash FROM campus.payment_fee_cash_facts WHERE environment_id=p.environment_id AND balance_id=a.balance_id;
   IF link.plan_id IS DISTINCT FROM p.id OR link.obligation_id IS DISTINCT FROM o.id OR link.cash_journal_id IS DISTINCT FROM cash.journal_id OR a.profile_id<>profile.id OR a.charge_id<>f.charge_id OR a.lot_id<>f.lot_id OR NOT EXISTS(SELECT 1 FROM campus.payment_receipt_facts rf WHERE rf.id=a.receipt_fact_id AND rf.obligation_id=o.id AND rf.lot_id=f.lot_id AND rf.charge_id=f.charge_id AND rf.disposition='allocated') OR rowbody->>'incurredBy'<>f.charge_id OR rowbody->>'balanceId'<>a.balance_id OR (rowbody->>'amountCents')::bigint<>a.amount_cents OR (rowbody->>'taxCents')::bigint<>0 OR rowbody->>'settledVia'<>'balance' OR rowbody->>'incurredByType'<>'charge' OR NOT profile.contract->'processingFeatures' @> jsonb_build_array(jsonb_build_object('product',rowbody->>'product','feature',rowbody->>'feature')) OR NOT EXISTS(SELECT 1 FROM campus.payment_fee_report_memberships WHERE environment_id=p.environment_id AND semantic_id=a.semantic_id AND run_id=artifact.run_id) THEN RETURN jsonb_build_object('valid',false,'reason','typed_attribution');END IF;
   -- Shared cash is admissible only with complete typed attribution, never a whole-balance exemption.
-  IF cash.net_cents>=0 OR (SELECT coalesce(sum(amount_cents),0) FROM campus.payment_fee_attributions WHERE environment_id=p.environment_id AND balance_id=a.balance_id)<>-cash.net_cents OR EXISTS(SELECT 1 FROM campus.payment_fee_attributions aa JOIN campus.funding_obligations oo ON oo.id=aa.obligation_id WHERE aa.environment_id=p.environment_id AND aa.balance_id=a.balance_id AND oo.agreement_id=p.agreement_id AND aa.obligation_id<>o.id) THEN RETURN jsonb_build_object('valid',false,'reason','shared_cash_coverage');END IF;
+  IF NOT campus.amend_fee_balance_complete(p,a.balance_id) THEN RETURN jsonb_build_object('valid',false,'reason','shared_cash_coverage');END IF;
   IF campus.amend_entries(cash.journal_id)<>campus.amend_expected_entries(jsonb_build_array(jsonb_build_object('account','cash','credit',-cash.net_cents),jsonb_build_object('account','fee_expense','debit',-cash.net_cents))) THEN RETURN jsonb_build_object('valid',false,'reason','cash_entries');END IF;
   IF campus.amend_entries(link.global_journal_id)<>campus.amend_expected_entries(jsonb_build_array(jsonb_build_object('account','fee_expense','credit',a.amount_cents),jsonb_build_object('account','network_exposure','debit',a.amount_cents))) OR campus.amend_entries(link.lot_journal_id)<>campus.amend_expected_entries(jsonb_build_array(jsonb_build_object('account','fee_expense','debit',a.amount_cents),jsonb_build_object('account','network_exposure','credit',a.amount_cents))) THEN RETURN jsonb_build_object('valid',false,'reason','attribution_entries');END IF;
   total:=total+a.amount_cents;lotids:=array_append(lotids,link.lot_journal_id);globalids:=array_append(globalids,link.global_journal_id);cashids:=array_append(cashids,cash.journal_id);
@@ -381,21 +471,58 @@ BEGIN
  RETURN jsonb_build_object('valid',true,'additionalFeeCents',total,'semanticIds',ids,'lotJournalIds',array_remove(lotids,NULL),'globalJournalIds',array_remove(globalids,NULL),'cashJournalIds',array_remove(cashids,NULL));
 END $$;
 
-CREATE FUNCTION campus.amend_environment_foreign(p campus.amendment_financial_plans,h campus.payment_environment_effect_history) RETURNS boolean LANGUAGE plpgsql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
-DECLARE rowvalue jsonb:=coalesce(h.after_state,h.before_state);sem text;run text;bid text;rr campus.payment_fee_report_rows;foundrow boolean:=false;own jsonb:=campus.amend_standalone_evidence(p);
+CREATE FUNCTION campus.amend_environment_foreign(p campus.amendment_financial_plans,h campus.payment_environment_effect_history) RETURNS boolean
+LANGUAGE plpgsql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE rowvalue jsonb:=h.after_state; sem text; run text; bid text;
+ rr campus.payment_fee_report_rows; artifact campus.payment_fee_report_artifacts;
+ contents campus.amendment_fee_report_contents; actual jsonb; ids jsonb; own jsonb;
 BEGIN
- IF h.relation_name IN('payment_billing_profiles','payment_collection_profiles','payment_fee_evidence_conflicts') THEN RETURN true;END IF;
- IF h.relation_name='payment_synthetic_fee_closures' THEN
-  IF (own->>'valid')::boolean AND rowvalue->>'profile_id'=p.body#>>'{billingProfile,id}' AND EXISTS(SELECT 1 FROM campus.amendment_funding_origins ao JOIN campus.payment_receipt_facts rf ON rf.obligation_id=ao.obligation_id WHERE ao.plan_id=p.id AND rf.charge_id=rowvalue->>'charge_id') THEN RETURN false;END IF;
-  RETURN NOT EXISTS(SELECT 1 FROM campus.payment_receipt_facts rf JOIN campus.funding_obligations o ON o.id=rf.obligation_id WHERE rf.environment_id=p.environment_id AND rf.charge_id=rowvalue->>'charge_id' AND o.agreement_id IS DISTINCT FROM p.agreement_id);
+ -- Only exact immutable insertions of known evidence relations can be partitioned.
+ IF h.environment_id<>p.environment_id OR h.mutation<>'INSERT' OR h.before_state IS NOT NULL THEN RETURN true; END IF;
+ CASE h.relation_name
+ WHEN 'payment_fee_cash_facts' THEN
+  bid:=rowvalue->>'balance_id';
+  SELECT campus.money_effect_safe(to_jsonb(c)) INTO actual FROM campus.payment_fee_cash_facts c WHERE c.environment_id=p.environment_id AND c.balance_id=bid;
+ WHEN 'payment_fee_report_artifacts' THEN
+  run:=rowvalue->>'run_id';
+  SELECT campus.money_effect_safe(to_jsonb(a)) INTO actual FROM campus.payment_fee_report_artifacts a WHERE a.environment_id=p.environment_id AND a.run_id=run;
+ WHEN 'payment_fee_report_rows' THEN
+  sem:=rowvalue->>'semantic_id';
+  SELECT campus.money_effect_safe(to_jsonb(r)) INTO actual FROM campus.payment_fee_report_rows r WHERE r.environment_id=p.environment_id AND r.semantic_id=sem;
+ WHEN 'payment_fee_report_memberships' THEN
+  sem:=rowvalue->>'semantic_id'; run:=rowvalue->>'run_id';
+  SELECT campus.money_effect_safe(to_jsonb(m)) INTO actual FROM campus.payment_fee_report_memberships m WHERE m.environment_id=p.environment_id AND m.run_id=run AND m.semantic_id=sem;
+ WHEN 'payment_synthetic_fee_closures' THEN
+  SELECT campus.money_effect_safe(to_jsonb(c)) INTO actual FROM campus.payment_synthetic_fee_closures c WHERE c.environment_id=p.environment_id AND c.profile_id=(rowvalue->>'profile_id')::uuid AND c.charge_id=rowvalue->>'charge_id';
+  IF actual IS DISTINCT FROM rowvalue THEN RETURN true; END IF;
+  own:=campus.amend_standalone_evidence(p);
+  IF (own->>'valid')::boolean AND rowvalue->>'profile_id'=p.body#>>'{billingProfile,id}' AND EXISTS(SELECT 1 FROM campus.amendment_funding_origins ao JOIN campus.payment_receipt_facts rf ON rf.obligation_id=ao.obligation_id WHERE ao.plan_id=p.id AND rf.charge_id=rowvalue->>'charge_id') THEN RETURN false; END IF;
+  -- Both supported receipt origins can independently own a synthetic closure.
+  RETURN NOT EXISTS(
+   SELECT 1 FROM campus.funding_obligations o JOIN campus.payment_billing_bindings b ON b.obligation_id=o.id
+   JOIN (SELECT environment_id,obligation_id,charge_id FROM campus.payment_receipt_facts
+     UNION SELECT environment_id,obligation_id,charge_id FROM campus.payment_fee_supplement_receipts) r ON r.obligation_id=o.id
+   WHERE r.environment_id=p.environment_id AND r.charge_id=rowvalue->>'charge_id' AND b.profile_id=(rowvalue->>'profile_id')::uuid
+    AND o.agreement_id IS DISTINCT FROM p.agreement_id);
+ ELSE RETURN true;
+ END CASE;
+ IF actual IS DISTINCT FROM rowvalue THEN RETURN true; END IF;
+ IF bid IS NOT NULL THEN RETURN NOT campus.amend_fee_balance_complete(p,bid); END IF;
+ IF run IS NOT NULL THEN
+  SELECT * INTO artifact FROM campus.payment_fee_report_artifacts WHERE environment_id=p.environment_id AND run_id=run;
+  SELECT * INTO contents FROM campus.amendment_fee_report_contents WHERE environment_id=p.environment_id AND run_id=run;
+  SELECT coalesce(jsonb_agg(m.semantic_id ORDER BY m.semantic_id),'[]') INTO ids FROM campus.payment_fee_report_memberships m WHERE m.environment_id=p.environment_id AND m.run_id=run;
+  IF contents.run_id IS NULL OR contents.content_digest IS DISTINCT FROM artifact.content_digest
+   OR contents.semantic_ids IS DISTINCT FROM ids OR artifact.report_type<>'all_fees.balance_transaction_created.itemized.2'
+   OR EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts c WHERE c.environment_id=p.environment_id AND c.identity='report:'||run)
+  THEN RETURN true; END IF;
+  -- [] is admissible only because the ingestion sidecar proves the parsed content was [].
  END IF;
- sem:=rowvalue->>'semantic_id';run:=rowvalue->>'run_id';bid:=rowvalue->>'balance_id';
- FOR rr IN SELECT * FROM campus.payment_fee_report_rows r WHERE r.environment_id=p.environment_id AND (r.semantic_id=sem OR (run IS NOT NULL AND EXISTS(SELECT 1 FROM campus.payment_fee_report_memberships m WHERE m.environment_id=p.environment_id AND m.run_id=run AND m.semantic_id=r.semantic_id)) OR r.body->>'balanceId'=bid) LOOP
-  foundrow:=true;
-  IF (own->>'valid')::boolean AND own->'semanticIds' ? rr.semantic_id THEN CONTINUE;END IF;
-  IF NOT EXISTS(SELECT 1 FROM campus.payment_fee_attributions a JOIN campus.funding_obligations o ON o.id=a.obligation_id JOIN campus.payment_receipt_facts rf ON rf.id=a.receipt_fact_id WHERE a.environment_id=p.environment_id AND a.semantic_id=rr.semantic_id AND rf.charge_id=rr.body->>'incurredBy' AND o.agreement_id IS DISTINCT FROM p.agreement_id) THEN RETURN true;END IF;
+ FOR rr IN SELECT r.* FROM campus.payment_fee_report_rows r WHERE r.environment_id=p.environment_id
+   AND (r.semantic_id=sem OR EXISTS(SELECT 1 FROM campus.payment_fee_report_memberships m WHERE m.environment_id=p.environment_id AND m.run_id=run AND m.semantic_id=r.semantic_id)) LOOP
+  IF NOT campus.amend_fee_balance_complete(p,rr.body->>'balanceId') THEN RETURN true; END IF;
  END LOOP;
- RETURN NOT foundrow;
+ RETURN sem IS NULL AND run IS NULL;
 END $$;
 CREATE FUNCTION campus.amend_assess(p campus.amendment_financial_plans,persist boolean DEFAULT true) RETURNS jsonb LANGUAGE plpgsql SET search_path=pg_catalog,campus,pg_temp AS $$
 DECLARE o campus.funding_obligations;f campus.funding_allocations;a campus.payment_attempts;rf campus.payment_receipt_facts;op campus.money_operations;settlement campus.payment_fee_settlements;maximum_plan jsonb;actual_plan jsonb;h campus.money_effect_history;eh campus.payment_environment_effect_history;assessment uuid;reason_value text;allowed uuid[]:='{}';envallowed bigint[]:='{}';current_state jsonb;expected jsonb;v jsonb;cp campus.funding_component_plans;res campus.money_reservations;receipt_ids uuid[];jids uuid[];before_value jsonb;after_value jsonb;mutable text[];rr bigint;standalone jsonb;totalfee bigint;
@@ -452,7 +579,7 @@ BEGIN
   IF campus.amend_entries(settlement.journal_id)<>expected OR ((totalfee=0) IS DISTINCT FROM (settlement.journal_id IS NULL)) THEN reason_value:='recovery_entries_unmatched';END IF;
   jids:=array_remove(ARRAY[rf.receipt_journal_id,rf.fee_journal_id,settlement.journal_id],NULL);
   IF (standalone->>'valid')::boolean THEN jids:=jids||ARRAY(SELECT value::uuid FROM jsonb_array_elements_text(standalone->'lotJournalIds'));END IF;
-  IF EXISTS(SELECT 1 FROM campus.ledger_journals WHERE lot_id=f.lot_id AND NOT id=ANY(jids)) OR EXISTS(SELECT 1 FROM campus.payment_receipt_facts WHERE obligation_id=o.id AND (disposition<>'allocated' OR charge_id<>rf.charge_id OR (observed_fee_cents IS NOT NULL AND observed_fee_cents<>f.actual_fee_cents))) THEN reason_value:='extra_or_unmatched_money';END IF;
+  IF EXISTS(SELECT 1 FROM campus.ledger_journals WHERE lot_id=f.lot_id AND NOT id=ANY(jids)) OR EXISTS(SELECT 1 FROM campus.payment_receipt_facts WHERE obligation_id=o.id AND (disposition<>'allocated' OR charge_id<>rf.charge_id OR (observed_fee_cents IS NOT NULL AND observed_fee_cents<>f.actual_fee_cents))) THEN reason_value:=coalesce(reason_value,'extra_or_unmatched_money');END IF;
   FOR v IN SELECT value FROM jsonb_array_elements(maximum_plan#>'{lots,0,components}') LOOP
    SELECT * INTO cp FROM campus.funding_component_plans WHERE id=(v->>'id')::uuid AND lot_id=f.lot_id;
    IF cp.id IS NULL OR cp.member_id<>(v->>'memberId')::uuid OR cp.milestone_id<>(v->>'milestoneId')::uuid OR cp.gross_cents<>(v->>'grossCents')::bigint OR cp.recipient_fee_cents<>(v->>'recipientFeeCents')::bigint OR cp.net_cents<>(v->>'netCents')::bigint THEN reason_value:='component_coverage_mismatch';END IF;
@@ -608,11 +735,27 @@ ALTER TABLE campus.amendment_money_activations ADD FOREIGN KEY(assessment_id,pla
 ALTER FUNCTION campus.money_fee_report(uuid,jsonb) RENAME TO money_fee_report_before_amendment;
 REVOKE ALL ON FUNCTION campus.money_fee_report_before_amendment(uuid,jsonb) FROM PUBLIC,campus_app,campus_auth,campus_worker;
 CREATE FUNCTION campus.money_fee_report(eid uuid,artifact jsonb) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
-BEGIN PERFORM campus.money_cash_lock(eid);RETURN campus.money_fee_report_before_amendment(eid,artifact);END $$;
+DECLARE accepted boolean; ids jsonb; persisted jsonb; prior campus.amendment_fee_report_contents;
+BEGIN
+ PERFORM campus.money_cash_lock(eid);
+ accepted:=campus.money_fee_report_before_amendment(eid,artifact);
+ IF NOT accepted THEN RETURN false; END IF;
+ SELECT coalesce(jsonb_agg(r->>'semanticId' ORDER BY r->>'semanticId'),'[]') INTO ids FROM jsonb_array_elements(artifact->'rows') r;
+ SELECT coalesce(jsonb_agg(m.semantic_id ORDER BY m.semantic_id),'[]') INTO persisted FROM campus.payment_fee_report_memberships m WHERE m.environment_id=eid AND m.run_id=artifact->>'runId';
+ SELECT * INTO prior FROM campus.amendment_fee_report_contents WHERE environment_id=eid AND run_id=artifact->>'runId';
+ IF ids IS DISTINCT FROM persisted OR (prior.run_id IS NOT NULL AND (prior.content_digest IS DISTINCT FROM artifact->>'contentDigest' OR prior.semantic_ids IS DISTINCT FROM ids))
+  OR EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts c WHERE c.environment_id=eid AND (c.identity='report:'||(artifact->>'runId') OR c.identity IN(SELECT 'row:'||jsonb_array_elements_text(ids))))
+ THEN
+  INSERT INTO campus.payment_fee_evidence_conflicts(environment_id,identity,observation) VALUES(eid,'report:'||(artifact->>'runId'),jsonb_build_object('reason','parsed_semantic_set_conflict','contentDigest',artifact->>'contentDigest','semanticIds',ids)) ON CONFLICT DO NOTHING;
+  RETURN false;
+ END IF;
+ INSERT INTO campus.amendment_fee_report_contents VALUES(eid,artifact->>'runId',artifact->>'contentDigest',ids) ON CONFLICT DO NOTHING;
+ RETURN true;
+END $$;
 REVOKE ALL ON FUNCTION campus.money_fee_report(uuid,jsonb) FROM PUBLIC,campus_app,campus_auth;GRANT EXECUTE ON FUNCTION campus.money_fee_report(uuid,jsonb) TO campus_worker;
 CREATE FUNCTION campus.amend_environment_lock() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,campus,pg_temp AS $$
 BEGIN
- IF TG_TABLE_NAME='payment_synthetic_fee_closures' THEN PERFORM campus.money_lock_aggregate((SELECT obligation_id FROM campus.payment_receipt_facts WHERE environment_id=NEW.environment_id AND charge_id=NEW.charge_id ORDER BY recorded_at LIMIT 1));END IF;
+ IF TG_TABLE_NAME='payment_synthetic_fee_closures' THEN PERFORM campus.money_lock_aggregate((SELECT obligation_id FROM campus.money_receipt_source(NEW.environment_id,NEW.charge_id)));END IF;
  PERFORM campus.money_cash_lock(NEW.environment_id);RETURN NEW;
 END $$;
 CREATE TRIGGER amendment_environment_lock BEFORE INSERT ON campus.payment_billing_profiles FOR EACH ROW EXECUTE FUNCTION campus.amend_environment_lock();
