@@ -1,3 +1,6 @@
+import Stripe from 'stripe';
+import {randomBytes} from 'node:crypto';
+import {paymentWebhook} from '../../backend/http/payment-webhook.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -222,6 +225,9 @@ test("actual goods policy consent and cancellation retain inventory until verifi
     );
     assert.equal((await m.product(S, product.id)).stock, 1);
     assert.equal((await m.getOrder(B, order.id)).state, "pending_payment");
+    // The remote session expired before our expire request. Its strict fake
+    // throws on expire; the actual worker must still retrieve exact terminal state.
+    transport.sessions.get(a.sessionId).status='expired';
     await worker.dispatch();
     assert.equal((await m.getOrder(B, order.id)).state, "cancelled");
     assert.equal((await m.product(S, product.id)).stock, 2);
@@ -282,6 +288,25 @@ test("actual goods policy consent and cancellation retain inventory until verifi
     assert.equal((await m.getOrder(B, order.id)).state, "cancelled");
     assert.equal((await m.product(S, product.id)).stock, 2);
     assert.equal((await m.orderPayment(B, order.id)).coverage, "held");
+    // Signed external facts against a late receipt that has no funding allocation.
+    const sdk=new Stripe('synthetic-no-network'),secret='whsec_'+randomBytes(24).toString('hex');transport.client.webhooks=sdk.webhooks;
+    const ingress=createStripePayments({client:transport.client,environment:env,snapshotSecret:secret});
+    const handler=paymentWebhook(async()=>({paymentAdapter:ingress,store:f.store}));
+    const charge=(await adapter.retrieveCheckoutAndPayment(a.sessionId)).charge;
+    const refund=await transport.client.refunds.create({charge:charge.id,amount:1000,metadata:{}},{idempotencyKey:'external-late-'+key()});
+    const dispute={id:'dp_'+key(),charge:charge.id,livemode:false,balance_transactions:[]};
+    const db={id:'txn_'+key(),source:dispute.id,amount:-500,net:-500,fee:0,currency:'usd',status:'available'};
+    transport.balances.set(db.id,db);dispute.balance_transactions.push(db);transport.client.disputes={retrieve:async()=>dispute};
+    for(const [type,id] of [['refund.updated',refund.id],['charge.dispute.funds_withdrawn',dispute.id]])for(let n=0;n<2;n++){
+      const body=JSON.stringify({id:'evt_'+key(),type,livemode:false,data:{object:{id}}});
+      assert.equal((await handler(new Request('http://127.0.0.1/api/v1/webhooks/stripe',{method:'POST',body,headers:{'stripe-signature':sdk.webhooks.generateTestHeaderString({payload:body,secret})}}))).status,200);await worker.inbox();
+    }
+    assert.equal((await f.owner.query('SELECT count(*)::int n FROM campus.funding_allocations')).rows[0].n,0);
+    assert.equal((await f.owner.query('SELECT count(*)::int n FROM campus.payment_external_balance_facts WHERE receipt_fact_id IS NOT NULL')).rows[0].n,1);
+    assert.equal((await f.owner.query('SELECT count(*)::int n FROM campus.payment_network_balance_facts WHERE receipt_fact_id IS NOT NULL')).rows[0].n,1);
+    assert.equal((await f.owner.query("SELECT sum(ll.debit-ll.credit)::text n FROM campus.ledger_lines ll JOIN campus.ledger_journals j ON j.id=ll.journal_id WHERE j.environment_id=$1 AND ll.account='cash'",[env.id])).rows[0].n,'8350');
+    assert.equal((await m.getOrder(B,order.id)).state,'cancelled');assert.equal((await m.product(S,product.id)).stock,2);
+
     assert.equal(
       (
         await f.owner.query(

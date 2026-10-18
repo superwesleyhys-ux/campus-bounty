@@ -1,3 +1,5 @@
+CREATE VIEW campus.money_active_holds AS SELECT * FROM campus.payment_holds WHERE active;
+REVOKE ALL ON campus.money_active_holds FROM PUBLIC,campus_app,campus_auth,campus_worker;
 -- Purpose functions are the only money mutation authority. No provider network inside transactions.
 CREATE TABLE campus.settlement_eligibilities (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),agreement_id uuid NOT NULL REFERENCES campus.agreements,review_id uuid NOT NULL UNIQUE REFERENCES campus.milestone_reviews,
@@ -107,7 +109,7 @@ BEGIN
  IF q.expires_at<=campus.money_now() THEN RAISE EXCEPTION 'quote_expired' USING ERRCODE='P0001';END IF;
  IF o.revision IS DISTINCT FROM (request->>'expectedObligationRevision')::integer THEN RAISE EXCEPTION 'stale_payment_revision' USING ERRCODE='P0001';END IF;
  IF o.order_id IS NOT NULL AND EXISTS(SELECT 1 FROM campus.orders x JOIN campus.order_payment_state ps ON ps.order_id=x.id WHERE x.id=o.order_id AND (x.reserved_until<=campus.money_now() OR ps.resolution<>'open' OR x.state<>'pending_payment')) THEN RAISE EXCEPTION 'quote_expired' USING ERRCODE='P0001';END IF;
- IF EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=oid AND active) THEN RAISE EXCEPTION 'funds_held' USING ERRCODE='P0001';END IF;
+ IF EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=oid AND active) THEN RAISE EXCEPTION 'funds_held' USING ERRCODE='P0001';END IF;
  SELECT * INTO e FROM campus.payment_environments WHERE id=o.environment_id AND enabled;IF NOT FOUND THEN RAISE EXCEPTION 'payments_unavailable' USING ERRCODE='P0001';END IF;
  body:=jsonb_build_object('attemptId',aid,'obligationId',oid,'quoteId',q.id,'quoteDigest',q.digest,'amountCents',o.amount_cents,'currency','usd','sourceDigest',o.source_digest,'platformAccountId',e.platform_account_id,'mode',e.mode,'policyId',o.policy_id,'policyDigest',(SELECT digest FROM campus.payment_execution_policies WHERE id=o.policy_id),'policyVersion',(SELECT version FROM campus.payment_execution_policies WHERE id=o.policy_id),'policyProvenance',(SELECT provenance FROM campus.payment_execution_policies WHERE id=o.policy_id),'returnUrl',e.origin||'/?view=workspace&tab=agreements&resource='||CASE WHEN o.order_id IS NULL THEN 'agreement' ELSE 'order' END||'&id='||coalesce(o.order_id,o.agreement_id)::text,'integrationIdentifier','campus_bounty_'||translate(substr(replace(aid::text,'-',''),1,8),'0123456789','abcdefghij'));
  op:=campus.money_enqueue(o.environment_id,oid,'checkout',aid::text,body);
@@ -207,7 +209,7 @@ BEGIN
   ELSE PERFORM campus.money_hold(o.id,'fee_fact_changed','fee_changed:'||feeid,jsonb_build_object('actual',actual));
   END IF;
  END IF;
- RETURN jsonb_build_object('coverage',CASE WHEN EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=o.id AND active) THEN 'held' ELSE 'covered' END);
+ RETURN jsonb_build_object('coverage',CASE WHEN EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=o.id AND active) THEN 'held' ELSE 'covered' END);
 END $$;
 CREATE FUNCTION campus.money_earn(review_uuid uuid) RETURNS uuid LANGUAGE plpgsql SET search_path=pg_catalog,campus,pg_temp AS $$
 DECLARE r campus.milestone_reviews;b campus.submission_terms;t campus.agreement_transaction_bindings;elig uuid;cp campus.funding_component_plans;l campus.funding_lots;f campus.funding_allocations;pol text;ready boolean;
@@ -253,11 +255,12 @@ BEGIN
   SELECT * INTO f FROM campus.funding_allocations WHERE lot_id=p.lot_id FOR UPDATE;
   SELECT * INTO a FROM campus.connected_payee_accounts WHERE environment_id=eid AND user_id=c.member_id;
   IF f.fee_state IS DISTINCT FROM 'matched' OR a.transfer_capability IS DISTINCT FROM 'active' OR a.observed_at<campus.money_now()-interval '5 minutes' OR a.observed_at IS NULL THEN CONTINUE;END IF;
-  IF EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=o.id AND active AND (member_id IS NULL OR member_id=c.member_id)) OR NOT EXISTS(SELECT 1 FROM campus.users WHERE id=c.member_id AND account_status='active') THEN CONTINUE;END IF;
+  IF EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=o.id AND active AND (member_id IS NULL OR member_id=c.member_id)) OR NOT EXISTS(SELECT 1 FROM campus.users WHERE id=c.member_id AND account_status='active') THEN CONTINUE;END IF;
   IF EXISTS(SELECT 1 FROM campus.money_reservations WHERE component_id=c.id AND kind IN('transfer','refund') AND status IN('reserved','consumed')) THEN CONTINUE;END IF;
   SELECT coalesce(sum(ll.debit-ll.credit),0) INTO cash FROM campus.ledger_lines ll JOIN campus.ledger_journals j ON j.id=ll.journal_id WHERE j.lot_id=p.lot_id AND ll.account='cash';
   SELECT coalesce(sum(amount_cents),0) INTO reserved FROM campus.money_reservations WHERE lot_id=p.lot_id AND status='reserved' AND kind IN('transfer','refund');
-  IF f.available_cents IS NULL OR least(cash,f.available_cents)-reserved<p.net_cents OR campus.money_cash_headroom(eid,NULL)<p.net_cents OR campus.money_cash_headroom(eid,p.lot_id)<p.net_cents THEN CONTINUE;END IF;
+  IF f.available_cents IS NULL OR campus.money_cash_headroom(eid,NULL)<p.net_cents OR campus.money_cash_headroom(eid,p.lot_id)<p.net_cents THEN CONTINUE;END IF;
+  IF p.net_cents+coalesce((SELECT sum(rr.amount_cents) FROM campus.money_reservations rr JOIN campus.money_operations mm ON mm.id=rr.operation_id WHERE mm.environment_id=eid AND mm.kind='transfer' AND mm.payload->>'sourceCharge'=f.charge_id AND rr.status IN('reserved','consumed')),0)>o.amount_cents THEN CONTINUE;END IF;
   op:=campus.money_enqueue(eid,o.id,'transfer',c.id::text,jsonb_build_object('componentId',c.id,'payableId',p.id,'amountCents',p.net_cents,'currency','usd','destination',a.provider_account_id,'sourceCharge',f.charge_id,'transferGroup',o.id::text,'platformAccountId',(SELECT platform_account_id FROM campus.payment_environments WHERE id=eid),'mode',(SELECT mode FROM campus.payment_environments WHERE id=eid),'policyId',o.policy_id,'policyDigest',(SELECT digest FROM campus.payment_execution_policies WHERE id=o.policy_id),'policyVersion',(SELECT version FROM campus.payment_execution_policies WHERE id=o.policy_id),'policyProvenance',(SELECT provenance FROM campus.payment_execution_policies WHERE id=o.policy_id),'sourceDigest',o.source_digest));
   INSERT INTO campus.money_reservations(environment_id,lot_id,component_id,operation_id,kind,amount_cents) VALUES(eid,p.lot_id,c.id,op,'transfer',p.net_cents);
   UPDATE campus.payables SET operation_id=op WHERE id=p.id;n:=n+1;
@@ -284,13 +287,13 @@ BEGIN
  ELSE RAISE EXCEPTION 'invalid_input' USING ERRCODE='P0001';END IF;
  SELECT * INTO o FROM campus.funding_obligations WHERE aggregate_type=kind AND aggregate_id=resource ORDER BY created_at DESC LIMIT 1;
  IF o.id IS NULL THEN RETURN jsonb_build_object('coverage','unknown','receivedCents',NULL,'requiredCents',NULL,'blockedReasons',jsonb_build_array('funding_not_established'),'allowedActions',jsonb_build_array());END IF;
- coverage:=CASE WHEN EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=o.id AND active) THEN 'held' WHEN EXISTS(SELECT 1 FROM campus.funding_allocations fa JOIN campus.funding_lots l ON l.id=fa.lot_id WHERE l.obligation_id=o.id) THEN 'covered' ELSE 'insufficient' END;
- SELECT jsonb_build_object('obligationId',o.id,'paymentRevision',o.revision,'environmentId',o.environment_id,'environment',(SELECT mode FROM campus.payment_environments WHERE id=o.environment_id),'currency','USD','termsId',o.terms_id,'termsRevision',o.terms_revision,'transactionTermsId',o.transaction_terms_id,'transactionTermsRevision',o.transaction_terms_revision,'estimatedFeeCents',o.fee_cents::text,'actualFeeCents',(SELECT fa.actual_fee_cents::text FROM campus.funding_allocations fa JOIN campus.funding_lots fl ON fl.id=fa.lot_id WHERE fl.obligation_id=o.id),'feeVarianceCents',(SELECT (fa.actual_fee_cents-o.fee_cents)::text FROM campus.funding_allocations fa JOIN campus.funding_lots fl ON fl.id=fa.lot_id WHERE fl.obligation_id=o.id),'coverage',coverage,'requiredCents',o.amount_cents::text,'receivedCents',(coalesce((SELECT sum(o.amount_cents) FROM campus.funding_allocations fa JOIN campus.funding_lots fl ON fl.id=fa.lot_id WHERE fl.obligation_id=o.id),0)+coalesce((SELECT sum(ur.amount_cents) FROM campus.payment_unmatched_receipts ur WHERE ur.obligation_id=o.id),0))::text,'feeState',(SELECT fa.fee_state FROM campus.funding_allocations fa JOIN campus.funding_lots l ON l.id=fa.lot_id WHERE l.obligation_id=o.id),'activeAttempt',(SELECT jsonb_build_object('id',a.id,'status',a.status,'operationId',a.operation_id) FROM campus.payment_attempts a WHERE a.obligation_id=o.id AND a.status NOT IN('failed','canceled') LIMIT 1),'blockedReasons',coalesce((SELECT jsonb_agg(reason) FROM campus.payment_holds WHERE obligation_id=o.id AND active),'[]'::jsonb),'payees',coalesce((SELECT jsonb_agg(jsonb_build_object('componentId',cp.id,'allocationComponentId',cp.allocation_component_id,'lotId',cp.lot_id,'memberId',cp.member_id,'milestoneId',cp.milestone_id,'grossCents',cp.gross_cents::text,'feeCents',cp.recipient_fee_cents::text,'netCents',cp.net_cents::text,'transferredCents',coalesce(p.transferred_cents,0)::text,'grossSatisfiedCents',coalesce(p.gross_satisfied_cents,0)::text,'releaseReady',coalesce(p.release_ready,false),'bankPayout','unknown')) FROM campus.funding_component_plans cp JOIN campus.funding_lots l ON l.id=cp.lot_id LEFT JOIN campus.payables p ON p.component_id=cp.id WHERE l.obligation_id=o.id),'[]'::jsonb),'allowedActions',jsonb_build_array('refresh'),'heldCents',NULL,'transferredCents',coalesce((SELECT sum(p.transferred_cents)::text FROM campus.payables p JOIN campus.funding_lots l ON l.id=p.lot_id WHERE l.obligation_id=o.id),'0'),'refundedCents',coalesce((SELECT sum(r.amount_cents)::text FROM campus.money_reservations r JOIN campus.funding_lots l ON l.id=r.lot_id WHERE l.obligation_id=o.id AND r.kind='refund' AND r.status='consumed'),'0'),'refundRequests',coalesce((SELECT jsonb_agg(jsonb_build_object('id',r.id,'amountCents',r.amount_cents::text,'status',r.status,'revision',r.revision)) FROM campus.refund_requests r WHERE r.obligation_id=o.id),'[]'::jsonb),'disputes',coalesce((SELECT jsonb_agg(jsonb_build_object('id',d.id,'origin',d.origin,'status',d.status,'revision',d.revision)) FROM campus.dispute_cases d WHERE d.obligation_id=o.id),'[]'::jsonb)) INTO result;RETURN result;
+ coverage:=CASE WHEN EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=o.id AND active) THEN 'held' WHEN EXISTS(SELECT 1 FROM campus.funding_allocations fa JOIN campus.funding_lots l ON l.id=fa.lot_id WHERE l.obligation_id=o.id) THEN 'covered' ELSE 'insufficient' END;
+ SELECT jsonb_build_object('obligationId',o.id,'paymentRevision',o.revision,'environmentId',o.environment_id,'environment',(SELECT mode FROM campus.payment_environments WHERE id=o.environment_id),'currency','USD','termsId',o.terms_id,'termsRevision',o.terms_revision,'transactionTermsId',o.transaction_terms_id,'transactionTermsRevision',o.transaction_terms_revision,'estimatedFeeCents',o.fee_cents::text,'actualFeeCents',(SELECT fa.actual_fee_cents::text FROM campus.funding_allocations fa JOIN campus.funding_lots fl ON fl.id=fa.lot_id WHERE fl.obligation_id=o.id),'feeVarianceCents',(SELECT (fa.actual_fee_cents-o.fee_cents)::text FROM campus.funding_allocations fa JOIN campus.funding_lots fl ON fl.id=fa.lot_id WHERE fl.obligation_id=o.id),'coverage',coverage,'requiredCents',o.amount_cents::text,'receivedCents',(coalesce((SELECT sum(o.amount_cents) FROM campus.funding_allocations fa JOIN campus.funding_lots fl ON fl.id=fa.lot_id WHERE fl.obligation_id=o.id),0)+coalesce((SELECT sum(ur.amount_cents) FROM campus.payment_unmatched_receipts ur WHERE ur.obligation_id=o.id),0))::text,'feeState',(SELECT fa.fee_state FROM campus.funding_allocations fa JOIN campus.funding_lots l ON l.id=fa.lot_id WHERE l.obligation_id=o.id),'activeAttempt',(SELECT jsonb_build_object('id',a.id,'status',a.status,'operationId',a.operation_id) FROM campus.payment_attempts a WHERE a.obligation_id=o.id AND a.status NOT IN('failed','canceled') LIMIT 1),'blockedReasons',coalesce((SELECT jsonb_agg(reason) FROM campus.money_active_holds WHERE obligation_id=o.id AND active),'[]'::jsonb),'payees',coalesce((SELECT jsonb_agg(jsonb_build_object('componentId',cp.id,'allocationComponentId',cp.allocation_component_id,'lotId',cp.lot_id,'memberId',cp.member_id,'milestoneId',cp.milestone_id,'grossCents',cp.gross_cents::text,'feeCents',cp.recipient_fee_cents::text,'netCents',cp.net_cents::text,'transferredCents',coalesce(p.transferred_cents,0)::text,'grossSatisfiedCents',coalesce(p.gross_satisfied_cents,0)::text,'releaseReady',coalesce(p.release_ready,false),'bankPayout','unknown')) FROM campus.funding_component_plans cp JOIN campus.funding_lots l ON l.id=cp.lot_id LEFT JOIN campus.payables p ON p.component_id=cp.id WHERE l.obligation_id=o.id),'[]'::jsonb),'allowedActions',jsonb_build_array('refresh'),'heldCents',NULL,'transferredCents',coalesce((SELECT sum(p.transferred_cents)::text FROM campus.payables p JOIN campus.funding_lots l ON l.id=p.lot_id WHERE l.obligation_id=o.id),'0'),'refundedCents',coalesce((SELECT sum(r.amount_cents)::text FROM campus.money_reservations r JOIN campus.funding_lots l ON l.id=r.lot_id WHERE l.obligation_id=o.id AND r.kind='refund' AND r.status='consumed'),'0'),'refundRequests',coalesce((SELECT jsonb_agg(jsonb_build_object('id',r.id,'amountCents',r.amount_cents::text,'status',r.status,'revision',r.revision)) FROM campus.refund_requests r WHERE r.obligation_id=o.id),'[]'::jsonb),'disputes',coalesce((SELECT jsonb_agg(jsonb_build_object('id',d.id,'origin',d.origin,'status',d.status,'revision',d.revision)) FROM campus.dispute_cases d WHERE d.obligation_id=o.id),'[]'::jsonb)) INTO result;RETURN result;
 END $$;
 CREATE FUNCTION campus.money_read_attempt(aid uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
 DECLARE a campus.payment_attempts;o campus.funding_obligations;
 BEGIN SELECT * INTO a FROM campus.payment_attempts WHERE id=aid;IF NOT FOUND OR NOT campus.money_visible(a.obligation_id) THEN RAISE EXCEPTION 'not_found' USING ERRCODE='P0001';END IF;SELECT * INTO o FROM campus.funding_obligations WHERE id=a.obligation_id;
- RETURN jsonb_build_object('attemptId',a.id,'operationId',a.operation_id,'obligationId',a.obligation_id,'status',a.status,'sessionId',a.session_id,'chargeId',a.charge_id,'hostedUrl',CASE WHEN campus.actor()=o.payer_id AND a.status='requires_action' AND a.expires_at>campus.money_now() AND EXISTS(SELECT 1 FROM campus.users WHERE id=campus.actor() AND account_status='active') AND NOT EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=o.id AND active) THEN a.hosted_url END,'expiresAt',a.expires_at);
+ RETURN jsonb_build_object('attemptId',a.id,'operationId',a.operation_id,'obligationId',a.obligation_id,'status',a.status,'sessionId',a.session_id,'chargeId',a.charge_id,'hostedUrl',CASE WHEN campus.actor()=o.payer_id AND a.status='requires_action' AND a.expires_at>campus.money_now() AND EXISTS(SELECT 1 FROM campus.users WHERE id=campus.actor() AND account_status='active') AND NOT EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=o.id AND active) THEN a.hosted_url END,'expiresAt',a.expires_at);
 END $$;
 CREATE FUNCTION campus.money_read_operation(opid uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
 DECLARE op campus.money_operations;
@@ -434,7 +437,7 @@ BEGIN
  IF NEW.state IS NOT DISTINCT FROM OLD.state OR NEW.state NOT IN('shipped','ready_for_pickup','completed') THEN RETURN NEW;END IF;
  SELECT * INTO o FROM campus.funding_obligations WHERE order_id=NEW.id;
  IF o.id IS NULL OR NOT EXISTS(SELECT 1 FROM campus.funding_allocations fa JOIN campus.funding_lots l ON l.id=fa.lot_id WHERE l.obligation_id=o.id) THEN RAISE EXCEPTION 'funding_required' USING ERRCODE='P0001';END IF;
- IF EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=o.id AND active) THEN RAISE EXCEPTION 'funds_held' USING ERRCODE='P0001';END IF;
+ IF EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=o.id AND active) THEN RAISE EXCEPTION 'funds_held' USING ERRCODE='P0001';END IF;
  IF NEW.state='completed' THEN
   PERFORM campus.money_cash_lock(o.environment_id);
   SELECT * INTO p FROM campus.payment_execution_policies WHERE id=o.policy_id;
@@ -552,7 +555,7 @@ BEGIN
  SELECT * INTO f FROM campus.funding_allocations WHERE lot_id=c.lot_id FOR UPDATE;
  IF f.fee_state IS DISTINCT FROM 'matched' THEN CONTINUE;END IF;
  IF d.kind='refund' THEN
- IF EXISTS(SELECT 1 FROM campus.payment_holds h WHERE h.obligation_id=o.id AND h.active AND NOT coalesce(p.payload->'approvedHoldIds','[]'::jsonb)?h.id::text) THEN CONTINUE;END IF;
+ IF EXISTS(SELECT 1 FROM campus.money_active_holds h WHERE h.obligation_id=o.id AND h.active AND NOT coalesce(p.payload->'approvedHoldIds','[]'::jsonb)?h.id::text) THEN CONTINUE;END IF;
  SELECT coalesce(sum(amount_cents),0) INTO used FROM campus.money_reservations WHERE component_id=c.id AND kind IN('transfer','refund') AND status IN('reserved','consumed');
  IF c.net_cents-used+coalesce((SELECT sum(amount_cents) FROM campus.principal_restorations WHERE component_id=c.id),0)+coalesce((SELECT sum(amount_cents) FROM campus.payment_external_balance_facts WHERE component_id=c.id AND kind='reversal' AND role='original'),0)<d.amount_cents THEN CONTINUE;END IF;
  SELECT coalesce(sum(ll.debit-ll.credit),0) INTO cash FROM campus.ledger_lines ll JOIN campus.ledger_journals j ON j.id=ll.journal_id WHERE j.lot_id=c.lot_id AND ll.account='cash';
@@ -653,15 +656,16 @@ CREATE FUNCTION campus.money_dispatchable(op campus.money_operations) RETURNS bo
 DECLARE account campus.connected_payee_accounts;p campus.payment_execution_policies;
 BEGIN
  IF NOT EXISTS(SELECT 1 FROM campus.payment_environments WHERE id=op.environment_id AND enabled) THEN RETURN false;END IF;
- IF op.kind IN('transfer','checkout','fee_restitution') AND EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=op.obligation_id AND active) THEN RETURN false;END IF;
+ IF op.kind IN('transfer','checkout','fee_restitution') AND EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=op.obligation_id AND active) THEN RETURN false;END IF;
  IF op.kind='transfer' THEN
+  IF coalesce((SELECT sum(rr.amount_cents) FROM campus.money_reservations rr JOIN campus.money_operations mm ON mm.id=rr.operation_id WHERE mm.environment_id=op.environment_id AND mm.kind='transfer' AND mm.payload->>'sourceCharge'=op.payload->>'sourceCharge' AND rr.status IN('reserved','consumed')),0)>(SELECT amount_cents FROM campus.funding_obligations WHERE id=op.obligation_id) THEN RETURN false;END IF;
   SELECT * INTO account FROM campus.connected_payee_accounts WHERE environment_id=op.environment_id AND provider_account_id=op.payload->>'destination';
   IF account.transfer_capability IS DISTINCT FROM 'active' OR account.observed_at IS NULL OR account.observed_at<campus.money_now()-interval '5 minutes' OR NOT EXISTS(SELECT 1 FROM campus.users WHERE id=account.user_id AND account_status='active') THEN RETURN false;END IF;
  END IF;
  IF op.kind IN('transfer','refund','fee_restitution') AND (campus.money_cash_headroom(op.environment_id,NULL,CASE WHEN op.kind='refund' THEN (SELECT lot_id FROM campus.money_reservations WHERE operation_id=op.id LIMIT 1) END)<0 OR campus.money_cash_headroom(op.environment_id,(SELECT lot_id FROM campus.money_reservations WHERE operation_id=op.id LIMIT 1),CASE WHEN op.kind='refund' THEN (SELECT lot_id FROM campus.money_reservations WHERE operation_id=op.id LIMIT 1) END)<0) THEN RETURN false;END IF;
  IF op.kind IN('refund','reversal') THEN
   SELECT * INTO p FROM campus.payment_execution_policies WHERE id=(op.payload->>'policyId')::uuid AND status='approved' AND environment_id=op.environment_id AND purpose=op.kind;
-  IF p.id IS NULL OR p.digest IS DISTINCT FROM op.payload->>'policyDigest' OR EXISTS(SELECT 1 FROM campus.payment_holds h WHERE h.obligation_id=op.obligation_id AND h.active AND NOT coalesce(p.payload->'approvedHoldIds','[]'::jsonb)?h.id::text) THEN RETURN false;END IF;
+  IF p.id IS NULL OR p.digest IS DISTINCT FROM op.payload->>'policyDigest' OR EXISTS(SELECT 1 FROM campus.money_active_holds h WHERE h.obligation_id=op.obligation_id AND h.active AND NOT coalesce(p.payload->'approvedHoldIds','[]'::jsonb)?h.id::text) THEN RETURN false;END IF;
  END IF;RETURN true;
 END $$;
 CREATE FUNCTION campus.money_environment_binding(eid uuid) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$ SELECT jsonb_build_object('id',id,'platformAccountId',platform_account_id,'mode',mode,'enabled',enabled,'apiVersion',api_version,'sdkVersion',sdk_version) FROM campus.payment_environments WHERE id=eid $$;
@@ -756,7 +760,7 @@ BEGIN
  SELECT ab.* INTO b FROM campus.agreement_transaction_bindings ab JOIN campus.submission_terms st ON st.agreement_id=ab.agreement_id AND st.terms_id=ab.terms_id WHERE st.submission_id=sid AND st.milestone_id=mid;
  IF b.transaction_terms_id IS NOT NULL THEN
  IF b.transaction_terms_id IS DISTINCT FROM ttid OR b.transaction_terms_revision IS DISTINCT FROM ttr THEN RAISE EXCEPTION 'terms_refresh_required' USING ERRCODE='P0001';END IF;
- IF EXISTS(SELECT 1 FROM campus.payment_holds h JOIN campus.funding_obligations o ON o.id=h.obligation_id WHERE o.agreement_id=gid AND h.active) THEN RAISE EXCEPTION 'funds_held' USING ERRCODE='P0001';END IF;
+ IF EXISTS(SELECT 1 FROM campus.money_active_holds h JOIN campus.funding_obligations o ON o.id=h.obligation_id WHERE o.agreement_id=gid AND h.active) THEN RAISE EXCEPTION 'funds_held' USING ERRCODE='P0001';END IF;
  END IF;
  RETURN campus.review_milestone_work_before_money(mid,sid,ver,rev,decision,feedback,tid,tr);
 END $$;
@@ -873,7 +877,7 @@ REVOKE ALL ON FUNCTION campus.money_cash_lock(uuid),campus.money_cash_raw(uuid,u
 -- Holds consume only positive remaining unreserved source liquidity, never a second
 -- copy of cash already reserved/debited. An exact approved refund can use its lot.
 CREATE FUNCTION campus.money_cash_headroom(eid uuid,lid uuid DEFAULT NULL,approved_hold_lot uuid DEFAULT NULL) RETURNS bigint LANGUAGE sql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
- SELECT campus.money_cash_raw(eid,lid)-coalesce((SELECT sum(greatest(0,campus.money_cash_raw(eid,l.id))) FROM campus.funding_lots l WHERE l.environment_id=eid AND (lid IS NULL OR l.id=lid) AND l.id IS DISTINCT FROM approved_hold_lot AND EXISTS(SELECT 1 FROM campus.payment_holds h WHERE h.obligation_id=l.obligation_id AND h.active)),0)
+ SELECT campus.money_cash_raw(eid,lid)-coalesce((SELECT sum(greatest(0,campus.money_cash_raw(eid,l.id))) FROM campus.funding_lots l WHERE l.environment_id=eid AND (lid IS NULL OR l.id=lid) AND l.id IS DISTINCT FROM approved_hold_lot AND EXISTS(SELECT 1 FROM campus.money_active_holds h WHERE h.obligation_id=l.obligation_id AND h.active)),0)
 $$;
 REVOKE ALL ON FUNCTION campus.money_cash_headroom(uuid,uuid,uuid) FROM PUBLIC,campus_app,campus_auth,campus_worker;
 
@@ -883,7 +887,7 @@ DECLARE o campus.funding_obligations;c campus.funding_component_plans;f campus.f
 BEGIN IF oid IS NULL THEN RETURN;END IF;
  PERFORM 1 FROM campus.orders WHERE id=oid AND state='completed' FOR UPDATE;IF NOT FOUND THEN RETURN;END IF;
  SELECT * INTO o FROM campus.funding_obligations WHERE order_id=oid;IF o.id IS NULL THEN RETURN;END IF;PERFORM campus.money_cash_lock(o.environment_id);
- IF NOT EXISTS(SELECT 1 FROM campus.payment_execution_policies WHERE id=o.policy_id AND status='approved' AND payload->>'goodsRelease'='buyer_confirmed_receipt') OR EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=o.id AND active) THEN RETURN;END IF;
+ IF NOT EXISTS(SELECT 1 FROM campus.payment_execution_policies WHERE id=o.policy_id AND status='approved' AND payload->>'goodsRelease'='buyer_confirmed_receipt') OR EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=o.id AND active) THEN RETURN;END IF;
  SELECT cp.* INTO c FROM campus.money_effective_components cp JOIN campus.funding_lots l ON l.id=cp.lot_id WHERE l.obligation_id=o.id;SELECT * INTO f FROM campus.funding_allocations WHERE lot_id=c.lot_id;
  IF f.fee_state IS DISTINCT FROM 'matched' OR EXISTS(SELECT 1 FROM campus.payables WHERE component_id=c.id) THEN RETURN;END IF;
  IF c.net_cents>0 THEN PERFORM campus.money_journal(o.environment_id,c.lot_id,'goods_earned:'||c.id::text,jsonb_build_array(jsonb_build_object('account','reward_liability','debit',c.net_cents),jsonb_build_object('account','payable','credit',c.net_cents,'componentId',c.id,'memberId',c.member_id)));END IF;
@@ -931,22 +935,22 @@ BEGIN
  IF NOT actor_active THEN canquote:=false;reasons:=reasons||'"account_restricted"'::jsonb;END IF;
  IF o.id IS NOT NULL THEN
   IF o.policy_id IS DISTINCT FROM pol.id THEN canquote:=false;reasons:=reasons||'"quote_changed"'::jsonb;END IF;
-  IF EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=o.id AND active) THEN canquote:=false;END IF;
-  SELECT coalesce(sum(greatest(0,campus.money_cash_raw(o.environment_id,l.id))),0) INTO held FROM campus.funding_lots l WHERE l.obligation_id=o.id AND EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=o.id AND active);
+  IF EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=o.id AND active) THEN canquote:=false;END IF;
+  SELECT coalesce(sum(greatest(0,campus.money_cash_raw(o.environment_id,l.id))),0) INTO held FROM campus.funding_lots l WHERE l.obligation_id=o.id AND EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=o.id AND active);
   SELECT fa.fee_state INTO fee_state FROM campus.funding_allocations fa JOIN campus.funding_lots l ON l.id=fa.lot_id WHERE l.obligation_id=o.id;
   IF fee_state IS NOT NULL THEN canquote:=false;IF actor_active AND campus.actor()=payer THEN actions:=actions||'"request_refund_review"'::jsonb;END IF;END IF;
   IF actor_active THEN actions:=actions||'"open_dispute"'::jsonb;END IF;
   SELECT * INTO attempt FROM campus.payment_attempts WHERE obligation_id=o.id AND status NOT IN('failed','canceled') LIMIT 1;
   IF attempt.id IS NOT NULL THEN
    canquote:=false;actions:=actions||'"refresh_attempt"'::jsonb;
-   IF actor_active AND campus.actor()=payer AND attempt.status='requires_action' AND attempt.expires_at>campus.money_now() AND NOT EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=o.id AND active) THEN actions:=actions||'"open_checkout"'::jsonb;END IF;
+   IF actor_active AND campus.actor()=payer AND attempt.status='requires_action' AND attempt.expires_at>campus.money_now() AND NOT EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=o.id AND active) THEN actions:=actions||'"open_checkout"'::jsonb;END IF;
   ELSIF canquote AND campus.actor()=payer THEN
    SELECT * INTO q FROM campus.payment_quotes WHERE obligation_id=o.id AND expires_at>campus.money_now() ORDER BY created_at DESC LIMIT 1;
    IF q.id IS NOT NULL THEN actions:=actions||'"create_payment_attempt"'::jsonb;END IF;
   END IF;
   FOR item IN SELECT value FROM jsonb_array_elements(result->'payees') LOOP
    SELECT * INTO cp FROM campus.funding_component_plans WHERE id=(item->>'componentId')::uuid;SELECT * INTO p FROM campus.payables WHERE component_id=cp.id;SELECT * INTO op FROM campus.money_operations WHERE id=p.operation_id;SELECT * INTO a FROM campus.connected_payee_accounts WHERE environment_id=o.environment_id AND user_id=cp.member_id;
-   state:=CASE WHEN p.id IS NOT NULL AND p.transferred_cents=p.net_cents AND p.gross_satisfied_cents=cp.gross_cents THEN 'transferred' WHEN EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=o.id AND active AND (member_id IS NULL OR member_id=cp.member_id)) THEN 'held' WHEN fee_state IS NULL THEN 'awaiting_funding' WHEN fee_state<>'matched' THEN fee_state WHEN p.id IS NULL THEN 'awaiting_acceptance' WHEN NOT p.release_ready THEN 'waiting_final_group' WHEN op.status='unknown' OR op.status='dispatching' THEN 'reconciling' WHEN op.status='queued' THEN 'queued' WHEN op.status='held' THEN 'held' WHEN NOT EXISTS(SELECT 1 FROM campus.users WHERE id=cp.member_id AND account_status='active') THEN 'recipient_restricted' WHEN a.transfer_capability IS DISTINCT FROM 'active' THEN 'recipient_action_required' WHEN a.observed_at IS NULL OR a.observed_at<campus.money_now()-interval '5 minutes' THEN 'capability_refresh_required' WHEN campus.money_cash_headroom(o.environment_id,NULL)<p.net_cents OR campus.money_cash_headroom(o.environment_id,cp.lot_id)<p.net_cents THEN 'waiting_available_cash' ELSE 'ready' END;
+   state:=CASE WHEN p.id IS NOT NULL AND p.transferred_cents=p.net_cents AND p.gross_satisfied_cents=cp.gross_cents THEN 'transferred' WHEN EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=o.id AND active AND (member_id IS NULL OR member_id=cp.member_id)) THEN 'held' WHEN fee_state IS NULL THEN 'awaiting_funding' WHEN fee_state<>'matched' THEN fee_state WHEN p.id IS NULL THEN 'awaiting_acceptance' WHEN NOT p.release_ready THEN 'waiting_final_group' WHEN op.status='unknown' OR op.status='dispatching' THEN 'reconciling' WHEN op.status='queued' THEN 'queued' WHEN op.status='held' THEN 'held' WHEN NOT EXISTS(SELECT 1 FROM campus.users WHERE id=cp.member_id AND account_status='active') THEN 'recipient_restricted' WHEN a.transfer_capability IS DISTINCT FROM 'active' THEN 'recipient_action_required' WHEN a.observed_at IS NULL OR a.observed_at<campus.money_now()-interval '5 minutes' THEN 'capability_refresh_required' WHEN campus.money_cash_headroom(o.environment_id,NULL)<p.net_cents OR campus.money_cash_headroom(o.environment_id,cp.lot_id)<p.net_cents THEN 'waiting_available_cash' ELSE 'ready' END;
    members:=members||jsonb_build_array(item||jsonb_build_object('releaseState',state,'transferStatus',coalesce(op.status,'not_created'),'transferCapability',CASE WHEN campus.actor()=cp.member_id THEN coalesce(a.transfer_capability,'unknown') END));
   END LOOP;
   result:=result||jsonb_build_object('payees',members);
@@ -1053,7 +1057,7 @@ LANGUAGE plpgsql SET search_path=pg_catalog,campus,pg_temp AS $$
 DECLARE a campus.agreements;
 BEGIN
  a:=campus.lock_work_agreement_before_money(agreement_uuid,operation);
- IF EXISTS(SELECT 1 FROM campus.funding_obligations o JOIN campus.funding_lots l ON l.obligation_id=o.id JOIN campus.funding_allocations f ON f.lot_id=l.id JOIN campus.payment_holds h ON h.obligation_id=o.id AND h.active WHERE o.agreement_id=agreement_uuid) THEN RAISE EXCEPTION 'funds_held' USING ERRCODE='P0001';END IF;
+ IF EXISTS(SELECT 1 FROM campus.funding_obligations o JOIN campus.funding_lots l ON l.obligation_id=o.id JOIN campus.funding_allocations f ON f.lot_id=l.id JOIN campus.money_active_holds h ON h.obligation_id=o.id AND h.active WHERE o.agreement_id=agreement_uuid) THEN RAISE EXCEPTION 'funds_held' USING ERRCODE='P0001';END IF;
  RETURN a;
 END $$;
 REVOKE ALL ON FUNCTION campus.lock_work_agreement(uuid,text),campus.lock_work_agreement_before_money(uuid,text) FROM PUBLIC,campus_app,campus_auth,campus_worker;
@@ -1314,6 +1318,7 @@ BEGIN
  IF plan.id IS NULL THEN RETURN false;END IF;
  SELECT fa.* INTO f FROM campus.funding_allocations fa JOIN campus.funding_lots l ON l.id=fa.lot_id WHERE l.obligation_id=oid;
  IF f.lot_id IS NULL OR actual IS NULL THEN RETURN false;END IF;lid:=f.lot_id;
+ IF EXISTS(SELECT 1 FROM campus.payment_fee_revision_settlements rs WHERE rs.obligation_id=oid AND rs.evidence=campus.money_fee_evidence(oid)) THEN UPDATE campus.funding_allocations SET fee_state='matched' WHERE lot_id=lid;RETURN true;END IF;
  SELECT * INTO old FROM campus.payment_fee_settlements WHERE obligation_id=oid;
  IF FOUND THEN
   IF old.actual_fee_cents<>actual OR old.closure IS DISTINCT FROM closure_value THEN PERFORM campus.money_hold(oid,'later_fee_correction','later_fee_correction:'||oid::text||':'||encode(sha256(convert_to(campus.transaction_canonical(closure_value),'UTF8')),'hex'),jsonb_build_object('previous',old.actual_fee_cents,'observed',actual,'history','unchanged'));END IF;
@@ -1355,7 +1360,7 @@ BEGIN
  SELECT * INTO s FROM campus.payment_fee_settlements WHERE obligation_id=oid AND restitution_cents>0;IF NOT FOUND THEN RETURN 0;END IF;
  SELECT * INTO op FROM campus.money_operations WHERE obligation_id=oid AND kind='fee_restitution' ORDER BY created_at DESC,id DESC LIMIT 1;
  IF op.id IS NOT NULL AND (op.status<>'failed' OR NOT EXISTS(SELECT 1 FROM campus.money_reservations WHERE operation_id=op.id AND status='released')) THEN RETURN 0;END IF;
- IF EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=oid AND active) OR campus.money_cash_headroom(eid,NULL)<0 OR campus.money_cash_headroom(eid,s.lot_id)<0 THEN RETURN 0;END IF;
+ IF EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=oid AND active) OR campus.money_cash_headroom(eid,NULL)<0 OR campus.money_cash_headroom(eid,s.lot_id)<0 THEN RETURN 0;END IF;
  generation:=coalesce((op.payload->>'generation')::int,0)+1;
  newid:=campus.money_enqueue(eid,oid,'fee_restitution',oid::text||':'||generation,jsonb_build_object('generation',generation,'feePlanId',s.plan_id,'feePlanDigest',(SELECT digest FROM campus.payment_fee_plans WHERE id=s.plan_id),'amountCents',s.restitution_cents,'currency','usd','sourceCharge',s.charge_id,'purpose','unused_preconsented_payer_fee_reserve','sourceDigest',o.source_digest));
  INSERT INTO campus.money_reservations(environment_id,lot_id,operation_id,kind,amount_cents) VALUES(eid,s.lot_id,newid,'fee_restitution',s.restitution_cents);RETURN 1;
@@ -1366,6 +1371,7 @@ BEGIN
  SELECT * INTO op FROM campus.money_operations WHERE id=opid AND kind='fee_restitution';IF NOT FOUND THEN RAISE EXCEPTION 'not_found' USING ERRCODE='P0001';END IF;
  PERFORM campus.money_lock_aggregate(op.obligation_id);PERFORM campus.money_cash_lock(op.environment_id);SELECT * INTO op FROM campus.money_operations WHERE id=opid FOR UPDATE;
  SELECT * INTO s FROM campus.payment_fee_settlements WHERE obligation_id=op.obligation_id;SELECT * INTO r FROM campus.money_reservations WHERE operation_id=opid FOR UPDATE;
+ IF op.payload ? 'restitutionId' THEN SELECT rr.obligation_id,rr.charge_id,rr.amount_cents,l.id INTO s.obligation_id,s.charge_id,s.restitution_cents,s.lot_id FROM campus.payment_fee_revision_restitutions rr JOIN campus.funding_lots l ON l.obligation_id=rr.obligation_id WHERE rr.id=(op.payload->>'restitutionId')::uuid AND rr.obligation_id=op.obligation_id AND rr.environment_id=op.environment_id;IF s.obligation_id IS NULL THEN RAISE EXCEPTION 'provider_fact_mismatch' USING ERRCODE='P0001';END IF;END IF;
  IF fact->>'environmentId' IS DISTINCT FROM op.environment_id::text OR fact->>'sourceCharge' IS DISTINCT FROM s.charge_id OR (fact->>'amountCents')::bigint IS DISTINCT FROM s.restitution_cents OR fact->>'currency' IS DISTINCT FROM 'usd' OR coalesce(fact->>'id','')='' OR (op.provider_id IS NOT NULL AND op.provider_id<>fact->>'id') THEN RAISE EXCEPTION 'provider_fact_mismatch' USING ERRCODE='P0001';END IF;
  FOR b IN SELECT value FROM jsonb_array_elements(fact->'balances') LOOP
   IF b->>'role' NOT IN('original','failure') OR (b->>'amountCents')::bigint IS DISTINCT FROM (CASE WHEN b->>'role'='original' THEN -s.restitution_cents ELSE s.restitution_cents END) OR (b->>'netCents')::bigint<>(b->>'amountCents')::bigint-(b->>'feeCents')::bigint THEN RAISE EXCEPTION 'provider_fact_mismatch' USING ERRCODE='P0001';END IF;
@@ -1388,7 +1394,7 @@ BEGIN
  IF r.status='consumed' THEN IF fact->>'status'<>'succeeded' THEN PERFORM campus.money_hold(op.obligation_id,'restitution_terminal_conflict','restitution_terminal:'||opid::text,'{}');END IF;RETURN true;END IF;
  IF fact->>'status' IN('failed','canceled') AND original IS NOT NULL AND failure IS NOT NULL AND (failure->>'available')::boolean THEN UPDATE campus.money_reservations SET status='released' WHERE id=r.id;UPDATE campus.money_operations SET status='failed',lease_until=NULL WHERE id=opid;RETURN true;END IF;
  IF fact->>'status'<>'succeeded' OR original IS NULL THEN RETURN false;END IF;
- PERFORM campus.money_journal(op.environment_id,s.lot_id,'fee_restitution:'||op.obligation_id::text,jsonb_build_array(jsonb_build_object('account','publisher_fee_liability','debit',s.restitution_cents),jsonb_build_object('account','network_exposure','credit',s.restitution_cents)));
+ PERFORM campus.money_journal(op.environment_id,s.lot_id,'fee_restitution:'||coalesce(op.payload->>'restitutionId',op.obligation_id::text),jsonb_build_array(jsonb_build_object('account','publisher_fee_liability','debit',s.restitution_cents),jsonb_build_object('account','network_exposure','credit',s.restitution_cents)));
  UPDATE campus.money_reservations SET status='consumed' WHERE id=r.id;UPDATE campus.money_operations SET status='succeeded',lease_until=NULL WHERE id=opid;RETURN true;
 END $$;
 DO $$ DECLARE t text;p record;BEGIN
@@ -1490,7 +1496,7 @@ BEGIN
  amount:=(rowvalue->>'amountCents')::bigint;
  IF (rowvalue->>'taxCents')::bigint<>0 OR amount<0 THEN PERFORM campus.money_hold(receipt.obligation_id,'fee_tax_authority_unresolved','fee_tax:'||semantic,rowvalue);RETURN false;END IF;
  SELECT * INTO cash FROM campus.payment_fee_cash_facts WHERE environment_id=eid AND balance_id=rowvalue->>'balanceId';IF NOT FOUND THEN RETURN false;END IF;
- IF EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts WHERE environment_id=eid AND identity IN('row:'||semantic,'balance:'||cash.balance_id)) OR coalesce((SELECT sum(amount_cents) FROM campus.payment_fee_attributions WHERE environment_id=eid AND balance_id=cash.balance_id),0)+amount>-cash.net_cents THEN PERFORM campus.money_hold(receipt.obligation_id,'fee_attribution_conflict','fee_attribution:'||semantic,rowvalue);RETURN false;END IF;
+ IF EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts WHERE environment_id=eid AND identity IN('row:'||semantic,'balance:'||cash.balance_id)) OR coalesce((SELECT sum(amount_cents) FROM campus.payment_fee_attributions WHERE environment_id=eid AND balance_id=cash.balance_id),0)+coalesce((SELECT sum(amount_cents) FROM campus.payment_fee_supplement_attributions WHERE environment_id=eid AND balance_id=cash.balance_id),0)+amount>-cash.net_cents THEN PERFORM campus.money_hold(receipt.obligation_id,'fee_attribution_conflict','fee_attribution:'||semantic,rowvalue);RETURN false;END IF;
  INSERT INTO campus.payment_fee_attributions VALUES(eid,semantic,cash.balance_id,receipt.receipt_fact_id,receipt.lot_id,receipt.obligation_id,receipt.charge_id,amount,p.id);
  -- Move already posted expense attribution between global and source dimensions;
  -- neither entry changes cash, and no customer liability is consumed here.
@@ -1546,7 +1552,7 @@ BEGIN UPDATE campus.payment_fee_report_jobs SET failures=failures+CASE WHEN code
 CREATE FUNCTION campus.money_fee_attribution_targets(eid uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
 DECLARE ids text[];
 BEGIN
- SELECT array_agg(semantic_id) INTO ids FROM (SELECT r.semantic_id FROM campus.payment_fee_report_rows r LEFT JOIN campus.payment_fee_attribution_attempts a USING(environment_id,semantic_id) WHERE r.environment_id=eid AND NOT EXISTS(SELECT 1 FROM campus.payment_fee_attributions f WHERE f.environment_id=eid AND f.semantic_id=r.semantic_id) ORDER BY a.last_attempt_at NULLS FIRST,r.semantic_id LIMIT 16) s;
+ SELECT array_agg(semantic_id) INTO ids FROM (SELECT r.semantic_id FROM campus.payment_fee_report_rows r LEFT JOIN campus.payment_fee_attribution_attempts a USING(environment_id,semantic_id) WHERE r.environment_id=eid AND NOT EXISTS(SELECT 1 FROM campus.payment_fee_attributions f WHERE f.environment_id=eid AND f.semantic_id=r.semantic_id) AND NOT EXISTS(SELECT 1 FROM campus.payment_fee_supplement_attributions f WHERE f.environment_id=eid AND f.semantic_id=r.semantic_id) ORDER BY a.last_attempt_at NULLS FIRST,r.semantic_id LIMIT 16) s;
  INSERT INTO campus.payment_fee_attribution_attempts SELECT eid,id,campus.money_now() FROM unnest(ids) id ON CONFLICT(environment_id,semantic_id) DO UPDATE SET last_attempt_at=excluded.last_attempt_at;RETURN coalesce(to_jsonb(ids),'[]');
 END $$;
 CREATE FUNCTION campus.money_attempt_reconciled(aid uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
@@ -1576,7 +1582,7 @@ CREATE OR REPLACE FUNCTION campus.money_cash_raw(eid uuid,lid uuid DEFAULT NULL)
 $$;
 
 CREATE OR REPLACE FUNCTION campus.money_cash_headroom(eid uuid,lid uuid DEFAULT NULL,approved_hold_lot uuid DEFAULT NULL) RETURNS bigint LANGUAGE sql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
- SELECT CASE WHEN EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts WHERE environment_id=eid) THEN least(0,campus.money_cash_raw(eid,lid)) ELSE campus.money_cash_raw(eid,lid)-coalesce((SELECT sum(greatest(0,campus.money_cash_raw(eid,l.id))) FROM campus.funding_lots l WHERE l.environment_id=eid AND (lid IS NULL OR l.id=lid) AND l.id IS DISTINCT FROM approved_hold_lot AND EXISTS(SELECT 1 FROM campus.payment_holds h WHERE h.obligation_id=l.obligation_id AND h.active)),0) END
+ SELECT CASE WHEN EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts WHERE environment_id=eid) THEN least(0,campus.money_cash_raw(eid,lid)) ELSE campus.money_cash_raw(eid,lid)-coalesce((SELECT sum(greatest(0,campus.money_cash_raw(eid,l.id))) FROM campus.funding_lots l WHERE l.environment_id=eid AND (lid IS NULL OR l.id=lid) AND l.id IS DISTINCT FROM approved_hold_lot AND EXISTS(SELECT 1 FROM campus.money_active_holds h WHERE h.obligation_id=l.obligation_id AND h.active)),0) END
 $$;
 
 CREATE OR REPLACE FUNCTION campus.money_dispatchable(op campus.money_operations) RETURNS boolean LANGUAGE plpgsql SET search_path=pg_catalog,campus,pg_temp AS $$
@@ -1584,15 +1590,16 @@ DECLARE account campus.connected_payee_accounts;p campus.payment_execution_polic
 BEGIN
  IF NOT EXISTS(SELECT 1 FROM campus.payment_environments WHERE id=op.environment_id AND enabled) THEN RETURN false;END IF;
  IF op.kind IN('checkout','transfer','refund','reversal','fee_restitution') AND EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts WHERE environment_id=op.environment_id) THEN RETURN false;END IF;
- IF op.kind IN('transfer','checkout','fee_restitution') AND EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=op.obligation_id AND active) THEN RETURN false;END IF;
+ IF op.kind IN('transfer','checkout','fee_restitution') AND EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=op.obligation_id AND active) THEN RETURN false;END IF;
  IF op.kind='transfer' THEN
+  IF coalesce((SELECT sum(rr.amount_cents) FROM campus.money_reservations rr JOIN campus.money_operations mm ON mm.id=rr.operation_id WHERE mm.environment_id=op.environment_id AND mm.kind='transfer' AND mm.payload->>'sourceCharge'=op.payload->>'sourceCharge' AND rr.status IN('reserved','consumed')),0)>(SELECT amount_cents FROM campus.funding_obligations WHERE id=op.obligation_id) THEN RETURN false;END IF;
   SELECT * INTO account FROM campus.connected_payee_accounts WHERE environment_id=op.environment_id AND provider_account_id=op.payload->>'destination';
   IF account.transfer_capability IS DISTINCT FROM 'active' OR account.observed_at IS NULL OR account.observed_at<campus.money_now()-interval '5 minutes' OR NOT EXISTS(SELECT 1 FROM campus.users WHERE id=account.user_id AND account_status='active') THEN RETURN false;END IF;
  END IF;
  IF op.kind IN('transfer','refund','fee_restitution') AND (campus.money_cash_headroom(op.environment_id,NULL,CASE WHEN op.kind='refund' THEN (SELECT lot_id FROM campus.money_reservations WHERE operation_id=op.id LIMIT 1) END)<0 OR campus.money_cash_headroom(op.environment_id,(SELECT lot_id FROM campus.money_reservations WHERE operation_id=op.id LIMIT 1),CASE WHEN op.kind='refund' THEN (SELECT lot_id FROM campus.money_reservations WHERE operation_id=op.id LIMIT 1) END)<0) THEN RETURN false;END IF;
  IF op.kind IN('refund','reversal') THEN
   SELECT * INTO p FROM campus.payment_execution_policies WHERE id=(op.payload->>'policyId')::uuid AND status='approved' AND environment_id=op.environment_id AND purpose=op.kind;
-  IF p.id IS NULL OR p.digest IS DISTINCT FROM op.payload->>'policyDigest' OR EXISTS(SELECT 1 FROM campus.payment_holds h WHERE h.obligation_id=op.obligation_id AND h.active AND NOT coalesce(p.payload->'approvedHoldIds','[]'::jsonb)?h.id::text) THEN RETURN false;END IF;
+  IF p.id IS NULL OR p.digest IS DISTINCT FROM op.payload->>'policyDigest' OR EXISTS(SELECT 1 FROM campus.money_active_holds h WHERE h.obligation_id=op.obligation_id AND h.active AND NOT coalesce(p.payload->'approvedHoldIds','[]'::jsonb)?h.id::text) THEN RETURN false;END IF;
  END IF;RETURN true;
 END $$;
 
@@ -1614,7 +1621,7 @@ BEGIN
  SELECT * INTO f FROM campus.funding_allocations WHERE lot_id=c.lot_id FOR UPDATE;
  IF f.fee_state IS DISTINCT FROM 'matched' THEN CONTINUE;END IF;
  IF d.kind='refund' THEN
- IF EXISTS(SELECT 1 FROM campus.payment_holds h WHERE h.obligation_id=o.id AND h.active AND NOT coalesce(p.payload->'approvedHoldIds','[]'::jsonb)?h.id::text) THEN CONTINUE;END IF;
+ IF EXISTS(SELECT 1 FROM campus.money_active_holds h WHERE h.obligation_id=o.id AND h.active AND NOT coalesce(p.payload->'approvedHoldIds','[]'::jsonb)?h.id::text) THEN CONTINUE;END IF;
  SELECT coalesce(sum(amount_cents),0) INTO used FROM campus.money_reservations WHERE component_id=c.id AND kind IN('transfer','refund') AND status IN('reserved','consumed');
  IF c.net_cents-used+coalesce((SELECT sum(amount_cents) FROM campus.principal_restorations WHERE component_id=c.id),0)+coalesce((SELECT sum(amount_cents) FROM campus.payment_external_balance_facts WHERE component_id=c.id AND kind='reversal' AND role='original'),0)<d.amount_cents THEN CONTINUE;END IF;
  SELECT coalesce(sum(ll.debit-ll.credit),0) INTO cash FROM campus.ledger_lines ll JOIN campus.ledger_journals j ON j.id=ll.journal_id WHERE j.lot_id=c.lot_id AND ll.account='cash';
@@ -1636,7 +1643,7 @@ BEGIN
  SELECT * INTO s FROM campus.payment_fee_settlements WHERE obligation_id=oid AND restitution_cents>0;IF NOT FOUND THEN RETURN 0;END IF;
  SELECT * INTO op FROM campus.money_operations WHERE obligation_id=oid AND kind='fee_restitution' ORDER BY created_at DESC,id DESC LIMIT 1;
  IF op.id IS NOT NULL AND (op.status<>'failed' OR NOT EXISTS(SELECT 1 FROM campus.money_reservations WHERE operation_id=op.id AND status='released')) THEN RETURN 0;END IF;
- IF EXISTS(SELECT 1 FROM campus.payment_holds WHERE obligation_id=oid AND active) OR campus.money_cash_headroom(eid,NULL)<0 OR campus.money_cash_headroom(eid,s.lot_id)<0 THEN RETURN 0;END IF;
+ IF EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=oid AND active) OR campus.money_cash_headroom(eid,NULL)<0 OR campus.money_cash_headroom(eid,s.lot_id)<0 THEN RETURN 0;END IF;
  generation:=coalesce((op.payload->>'generation')::int,0)+1;
  newid:=campus.money_enqueue(eid,oid,'fee_restitution',oid::text||':'||generation,jsonb_build_object('generation',generation,'feePlanId',s.plan_id,'feePlanDigest',(SELECT digest FROM campus.payment_fee_plans WHERE id=s.plan_id),'amountCents',s.restitution_cents,'currency','usd','sourceCharge',s.charge_id,'purpose','unused_preconsented_payer_fee_reserve','sourceDigest',o.source_digest));
  INSERT INTO campus.money_reservations(environment_id,lot_id,operation_id,kind,amount_cents) VALUES(eid,s.lot_id,newid,'fee_restitution',s.restitution_cents);RETURN 1;
@@ -1691,7 +1698,7 @@ BEGIN
   END IF;
   IF plan.id IS NOT NULL THEN
    SELECT * INTO settlement FROM campus.payment_fee_settlements WHERE obligation_id=o.id;
-   summary:=jsonb_build_object('id',plan.id,'digest',plan.digest,'estimatedFeeCents',plan.body->>'estimatedFeeCents','maximumFeeCents',plan.body->>'maximumFeeCents','maximumPayerFeeCents',plan.body->>'maximumPayerFeeCents','maximumRecipientFeeCents',plan.body->>'maximumRecipientFeeCents','upfrontCents',plan.body->'maximumPlan'->'lots'->0->>'chargeTotalCents','actualFeeCents',settlement.actual_fee_cents::text,'payerRestitutionCents',settlement.restitution_cents::text,'restitutionStatus',CASE WHEN settlement.obligation_id IS NULL THEN 'not_determined' WHEN settlement.restitution_cents=0 THEN 'not_required' ELSE coalesce((SELECT status FROM campus.money_operations WHERE obligation_id=o.id AND kind='fee_restitution' ORDER BY created_at DESC,id DESC LIMIT 1),'owed') END,'restoration',plan.body->>'restoration');
+   summary:=jsonb_build_object('id',plan.id,'digest',plan.digest,'estimatedFeeCents',plan.body->>'estimatedFeeCents','maximumFeeCents',plan.body->>'maximumFeeCents','maximumPayerFeeCents',plan.body->>'maximumPayerFeeCents','maximumRecipientFeeCents',plan.body->>'maximumRecipientFeeCents','upfrontCents',plan.body->'maximumPlan'->'lots'->0->>'chargeTotalCents','actualFeeCents',settlement.actual_fee_cents::text,'payerRestitutionCents',settlement.restitution_cents::text,'restitutionStatus',CASE WHEN settlement.obligation_id IS NULL THEN 'not_determined' WHEN settlement.restitution_cents=0 THEN 'not_required' ELSE coalesce((SELECT mo.status FROM campus.money_operations mo WHERE mo.obligation_id=o.id AND mo.kind='fee_restitution' ORDER BY mo.created_at DESC,mo.id DESC LIMIT 1),'owed') END,'restoration',plan.body->>'restoration');
    IF o.id IS NOT NULL THEN result:=result||jsonb_build_object('estimatedFeeCents',plan.body->>'estimatedFeeCents','actualFeeCents',settlement.actual_fee_cents::text,'feeVarianceCents',(settlement.actual_fee_cents-(plan.body->>'estimatedFeeCents')::bigint)::text);END IF;
   END IF;
   result:=result||jsonb_build_object('allowedActions',actions,'feePlan',summary);
@@ -1704,4 +1711,414 @@ BEGIN
  END IF;RETURN result;
 END $$;
 REVOKE ALL ON FUNCTION campus.money_projection_before_fee_plan(text,uuid),campus.money_projection(text,uuid) FROM PUBLIC,campus_app,campus_auth,campus_worker;
+GRANT EXECUTE ON FUNCTION campus.money_projection(text,uuid) TO campus_app;
+
+-- Exact over-cap reconfirmation is fee-only authority, never another principal lot.
+CREATE TABLE campus.payment_fee_revisions (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),obligation_id uuid NOT NULL REFERENCES campus.funding_obligations,
+ environment_id uuid NOT NULL REFERENCES campus.payment_environments,revision integer NOT NULL,policy_id uuid NOT NULL REFERENCES campus.payment_execution_policies,
+ base_evidence jsonb NOT NULL,base_digest text NOT NULL,body jsonb NOT NULL,digest text NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT campus.money_now(),UNIQUE(obligation_id,revision),UNIQUE(id,obligation_id,environment_id)
+);
+CREATE TABLE campus.payment_fee_revision_confirmations (
+ revision_id uuid NOT NULL REFERENCES campus.payment_fee_revisions,user_id uuid NOT NULL REFERENCES campus.users,digest text NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT campus.money_now(),PRIMARY KEY(revision_id,user_id)
+);
+CREATE TABLE campus.payment_fee_supplement_obligations (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),revision_id uuid NOT NULL UNIQUE,obligation_id uuid NOT NULL,environment_id uuid NOT NULL,
+ payer_id uuid NOT NULL REFERENCES campus.users,amount_cents bigint NOT NULL CHECK(amount_cents>0),source_digest text NOT NULL,
+ FOREIGN KEY(revision_id,obligation_id,environment_id) REFERENCES campus.payment_fee_revisions(id,obligation_id,environment_id),UNIQUE(id,environment_id)
+);
+CREATE TABLE campus.payment_fee_supplement_attempts (
+ id uuid PRIMARY KEY,fee_obligation_id uuid NOT NULL UNIQUE REFERENCES campus.payment_fee_supplement_obligations,operation_id uuid NOT NULL UNIQUE REFERENCES campus.money_operations,
+ status text NOT NULL DEFAULT 'creating' CHECK(status IN('creating','requires_action','processing','succeeded','unknown','failed','canceled')),
+ session_id text,charge_id text,intent_id text,hosted_url text,expires_at timestamptz
+);
+CREATE TABLE campus.payment_fee_supplement_receipts (
+ attempt_id uuid PRIMARY KEY REFERENCES campus.payment_fee_supplement_attempts,environment_id uuid NOT NULL,obligation_id uuid NOT NULL,
+ revision_id uuid NOT NULL,charge_id text NOT NULL,amount_cents bigint NOT NULL,fee_cents bigint,fee_fact_id text,available_cents bigint,
+ fact jsonb NOT NULL,receipt_journal_id uuid NOT NULL REFERENCES campus.ledger_journals,
+ UNIQUE(environment_id,charge_id),FOREIGN KEY(revision_id,obligation_id,environment_id) REFERENCES campus.payment_fee_revisions(id,obligation_id,environment_id)
+);
+CREATE TABLE campus.payment_fee_revision_settlements (
+ revision_id uuid PRIMARY KEY REFERENCES campus.payment_fee_revisions,obligation_id uuid NOT NULL REFERENCES campus.funding_obligations,
+ actual_fee_cents bigint NOT NULL,payer_fee_cents bigint NOT NULL,recipient_fee_cents bigint NOT NULL,actual_plan jsonb NOT NULL,
+ evidence jsonb NOT NULL,evidence_digest text NOT NULL,journal_id uuid REFERENCES campus.ledger_journals,created_at timestamptz NOT NULL DEFAULT campus.money_now()
+);
+CREATE TABLE campus.payment_fee_hold_resolutions (
+ hold_id uuid NOT NULL REFERENCES campus.payment_holds,revision_id uuid NOT NULL REFERENCES campus.payment_fee_revision_settlements,
+ evidence_digest text NOT NULL,PRIMARY KEY(hold_id,revision_id)
+);
+CREATE TABLE campus.payment_fee_revision_restitutions (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),revision_id uuid NOT NULL REFERENCES campus.payment_fee_revision_settlements,
+ obligation_id uuid NOT NULL REFERENCES campus.funding_obligations,environment_id uuid NOT NULL,charge_id text NOT NULL,
+ amount_cents bigint NOT NULL CHECK(amount_cents>0),UNIQUE(revision_id,charge_id)
+);
+ALTER TABLE campus.money_operations DROP CONSTRAINT money_operations_kind_check;
+ALTER TABLE campus.money_operations ADD CONSTRAINT money_operations_kind_check CHECK(kind IN('checkout','transfer','refund','reversal','expire','onboarding','recipient','fee_restitution','fee_supplement_checkout'));
+ALTER TABLE campus.payment_reconciliation_jobs DROP CONSTRAINT payment_reconciliation_jobs_kind_check;
+ALTER TABLE campus.payment_reconciliation_jobs ADD CONSTRAINT payment_reconciliation_jobs_kind_check CHECK(kind IN('attempt','compensation','external_refund','external_reversal','dispute','fee_supplement'));
+CREATE FUNCTION campus.money_fee_evidence(oid uuid,exclude_revision uuid DEFAULT NULL) RETURNS jsonb LANGUAGE sql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
+ SELECT jsonb_build_object('facts',coalesce(jsonb_agg(v ORDER BY v->>'identity'),'[]'::jsonb),'totalCents',coalesce(sum((v->>'feeCents')::bigint),0),'complete',coalesce(bool_and((v->>'verified')::boolean),false)) FROM (
+ SELECT jsonb_build_object('identity','original:'||f.charge_id,'chargeId',f.charge_id,'balanceId',f.fee_fact_id,'feeCents',f.actual_fee_cents,'verified',f.actual_fee_cents IS NOT NULL AND f.fee_fact_id IS NOT NULL) v FROM campus.funding_allocations f JOIN campus.funding_lots l ON l.id=f.lot_id WHERE l.obligation_id=oid
+ UNION ALL SELECT jsonb_build_object('identity','report:'||a.semantic_id,'chargeId',a.charge_id,'balanceId',a.balance_id,'feeCents',a.amount_cents,'verified',true) FROM campus.payment_fee_attributions a WHERE a.obligation_id=oid
+ UNION ALL SELECT jsonb_build_object('identity','supplement:'||r.charge_id,'chargeId',r.charge_id,'balanceId',r.fee_fact_id,'feeCents',r.fee_cents,'verified',r.fee_cents IS NOT NULL AND r.fee_fact_id IS NOT NULL) FROM campus.payment_fee_supplement_receipts r WHERE r.obligation_id=oid AND r.revision_id IS DISTINCT FROM exclude_revision
+ ) facts
+$$;
+CREATE FUNCTION campus.money_fee_retained_payer(oid uuid) RETURNS bigint LANGUAGE sql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
+ SELECT o.publisher_fee_cents+coalesce((SELECT sum(amount_cents) FROM campus.payment_fee_supplement_receipts WHERE obligation_id=oid),0)-coalesce((SELECT sum(r.amount_cents) FROM campus.money_reservations r JOIN campus.money_operations m ON m.id=r.operation_id WHERE m.obligation_id=oid AND r.kind='fee_restitution' AND r.status='consumed'),0) FROM campus.funding_obligations o WHERE o.id=oid
+$$;
+CREATE FUNCTION campus.money_fee_revision_propose(oid uuid,request jsonb) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE o campus.funding_obligations;p campus.payment_execution_policies;plan campus.payment_fee_plans;ev jsonb;bodyvalue jsonb;rid uuid;rev integer;estimate bigint;maximum bigint;shortfall bigint;computed jsonb;item jsonb;cp campus.funding_component_plans;used bigint;
+BEGIN
+ PERFORM campus.money_lock_aggregate(oid);SELECT * INTO o FROM campus.funding_obligations WHERE id=oid;PERFORM campus.money_projection(o.aggregate_type,o.aggregate_id);
+ IF o.payer_id IS DISTINCT FROM campus.actor() THEN RAISE EXCEPTION 'not_payer' USING ERRCODE='P0001';END IF;
+ PERFORM campus.money_environment();
+ IF EXISTS(SELECT 1 FROM campus.payment_fee_supplement_attempts a JOIN campus.payment_fee_supplement_obligations fo ON fo.id=a.fee_obligation_id WHERE fo.obligation_id=oid AND a.status NOT IN('succeeded','failed','canceled')) OR EXISTS(SELECT 1 FROM campus.money_operations WHERE obligation_id=oid AND kind='fee_restitution' AND status IN('queued','dispatching','unknown','held')) THEN RAISE EXCEPTION 'fee_reconciliation_in_progress' USING ERRCODE='P0001';END IF;
+ SELECT pp.* INTO p FROM campus.payment_execution_policies pp WHERE pp.id=(request->>'policyVersionId')::uuid AND pp.environment_id=o.environment_id AND pp.aggregate_type=o.aggregate_type AND pp.aggregate_id=o.aggregate_id AND pp.purpose='collection' AND pp.status='approved';
+ IF p.id IS NULL OR p.digest IS DISTINCT FROM request->>'policyDigest' OR p.payload->>'feeAdjustment' IS DISTINCT FROM 'capped_actual_v1' OR p.payload->>'originalObligationId' IS DISTINCT FROM oid::text OR p.payload->>'originalSourceDigest' IS DISTINCT FROM o.source_digest OR p.digest IS DISTINCT FROM encode(sha256(convert_to(campus.transaction_canonical(p.payload),'UTF8')),'hex') THEN RAISE EXCEPTION 'fee_revision_policy_unavailable' USING ERRCODE='P0001';END IF;
+ estimate:=(p.payload->>'supplementalEstimatedFeeCents')::bigint;IF estimate IS NULL OR estimate<0 OR estimate>100000000 THEN RAISE EXCEPTION 'supplemental_fee_estimate_required' USING ERRCODE='P0001';END IF;
+ SELECT pp.* INTO plan FROM campus.payment_fee_plans pp JOIN campus.payment_fee_plan_bindings b ON b.plan_id=pp.id WHERE b.obligation_id=oid;IF plan.id IS NULL THEN RAISE EXCEPTION 'fee_cap_consent_required' USING ERRCODE='P0001';END IF;
+ IF NOT EXISTS(SELECT 1 FROM campus.payment_billing_bindings WHERE obligation_id=oid AND profile_id IS NOT NULL) THEN RAISE EXCEPTION 'billing_contract_unavailable' USING ERRCODE='P0001';END IF;
+ ev:=campus.money_fee_evidence(oid);IF NOT (ev->>'complete')::boolean OR request->>'evidenceDigest' IS DISTINCT FROM encode(sha256(convert_to(campus.transaction_canonical(ev),'UTF8')),'hex') THEN RAISE EXCEPTION 'fee_evidence_refresh_required' USING ERRCODE='P0001';END IF;
+ maximum:=(ev->>'totalCents')::bigint+estimate+least(100,(estimate+9)/10);shortfall:=greatest(0,(maximum+1)/2-campus.money_fee_retained_payer(oid));computed:=campus.money_reprice_plan(plan.body->'originalPlan',maximum);
+ FOR item IN SELECT value FROM jsonb_array_elements(computed->'lots'->0->'components') LOOP
+  SELECT c.* INTO cp FROM campus.funding_component_plans c JOIN campus.funding_lots l ON l.id=c.lot_id WHERE l.obligation_id=oid AND c.member_id=(item->>'memberId')::uuid AND c.stage_position=(item->>'stagePosition')::int;
+  SELECT coalesce(sum(amount_cents),0) INTO used FROM campus.money_reservations WHERE component_id=cp.id AND kind IN('transfer','refund') AND status IN('reserved','consumed');
+  IF used>(item->>'netCents')::bigint THEN RAISE EXCEPTION 'recipient_fee_recovery_policy_required' USING ERRCODE='P0001';END IF;
+ END LOOP;
+ SELECT coalesce(max(revision),0)+1 INTO rev FROM campus.payment_fee_revisions WHERE obligation_id=oid;
+ bodyvalue:=jsonb_build_object('format','fee_reconfirmation_v1','obligationId',oid,'originalSourceDigest',o.source_digest,'originalChargeId',(SELECT charge_id FROM campus.funding_allocations WHERE lot_id=(SELECT id FROM campus.funding_lots WHERE obligation_id=oid)),'environmentId',o.environment_id,'policyId',p.id,'policyDigest',p.digest,'policyProvenance',p.provenance,'revision',rev,'participants',plan.body->'participants','payerId',o.payer_id,'originalPlan',plan.body->'originalPlan','evidence',ev,'supplementalEstimatedFeeCents',estimate,'maximumTotalFeeCents',maximum,'maximumPayerFeeCents',(maximum+1)/2,'maximumRecipientFeeCents',maximum/2,'supplementalAmountCents',shortfall,'maximumPlan',computed,'restoration','One separately started fee-only payment. All actual fees remain 50/50. Unused payer reserve is owed to the charge that supplied it. No automatic recursive collection. Changed base fee evidence, foreign operations, or combined cost above this cap require a new exact personally confirmed revision. Expected authenticated fees of this one supplementary operation may settle within this signed cap. Principal, stages and roster are unchanged.');
+ INSERT INTO campus.payment_fee_revisions(obligation_id,environment_id,revision,policy_id,base_evidence,base_digest,body,digest) VALUES(oid,o.environment_id,rev,p.id,ev,encode(sha256(convert_to(campus.transaction_canonical(ev),'UTF8')),'hex'),bodyvalue,encode(sha256(convert_to(campus.transaction_canonical(bodyvalue),'UTF8')),'hex')) RETURNING id INTO rid;
+ RETURN jsonb_build_object('revisionId',rid,'revision',rev,'digest',encode(sha256(convert_to(campus.transaction_canonical(bodyvalue),'UTF8')),'hex'));
+END $$;
+CREATE FUNCTION campus.money_fee_revision_confirm(rid uuid,request jsonb) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE r campus.payment_fee_revisions;o campus.funding_obligations;
+BEGIN
+ SELECT * INTO r FROM campus.payment_fee_revisions WHERE id=rid;PERFORM campus.money_lock_aggregate(r.obligation_id);SELECT * INTO o FROM campus.funding_obligations WHERE id=r.obligation_id;PERFORM campus.money_projection(o.aggregate_type,o.aggregate_id);
+ IF NOT coalesce(r.body->'participants' ? campus.actor()::text,false) THEN RAISE EXCEPTION 'not_found' USING ERRCODE='P0001';END IF;
+ IF r.digest IS DISTINCT FROM request->>'digest' OR r.base_evidence IS DISTINCT FROM campus.money_fee_evidence(r.obligation_id,r.id) OR r.revision<>(SELECT max(revision) FROM campus.payment_fee_revisions WHERE obligation_id=r.obligation_id) OR EXISTS(SELECT 1 FROM campus.payment_fee_supplement_obligations WHERE revision_id=rid) THEN RAISE EXCEPTION 'fee_evidence_refresh_required' USING ERRCODE='P0001';END IF;
+ INSERT INTO campus.payment_fee_revision_confirmations VALUES(rid,campus.actor(),r.digest,campus.money_now()) ON CONFLICT DO NOTHING;
+ RETURN jsonb_build_object('revisionId',rid,'participantId',campus.actor(),'digest',r.digest,'confirmed',true);
+END $$;
+CREATE FUNCTION campus.money_fee_revision_start(rid uuid,request jsonb) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE r campus.payment_fee_revisions;o campus.funding_obligations;e campus.payment_environments;fo campus.payment_fee_supplement_obligations;a campus.payment_fee_supplement_attempts;aid uuid:=gen_random_uuid();op uuid;bodyvalue jsonb;
+BEGIN
+ SELECT * INTO r FROM campus.payment_fee_revisions WHERE id=rid;PERFORM campus.money_lock_aggregate(r.obligation_id);SELECT * INTO o FROM campus.funding_obligations WHERE id=r.obligation_id;PERFORM campus.money_projection(o.aggregate_type,o.aggregate_id);
+ IF o.payer_id IS DISTINCT FROM campus.actor() THEN RAISE EXCEPTION 'not_payer' USING ERRCODE='P0001';END IF;
+ SELECT * INTO e FROM campus.payment_environments WHERE id=r.environment_id AND enabled;IF e.id IS NULL THEN RAISE EXCEPTION 'payments_unavailable' USING ERRCODE='P0001';END IF;
+ IF request->>'digest' IS DISTINCT FROM r.digest OR (request->>'acceptedAmountCents')::bigint IS DISTINCT FROM (r.body->>'supplementalAmountCents')::bigint OR r.base_evidence IS DISTINCT FROM campus.money_fee_evidence(r.obligation_id,r.id) OR r.revision<>(SELECT max(revision) FROM campus.payment_fee_revisions WHERE obligation_id=r.obligation_id) THEN RAISE EXCEPTION 'fee_evidence_refresh_required' USING ERRCODE='P0001';END IF;
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements_text(r.body->'participants') who WHERE NOT EXISTS(SELECT 1 FROM campus.payment_fee_revision_confirmations c WHERE c.revision_id=rid AND c.user_id=who::uuid AND c.digest=r.digest)) THEN RAISE EXCEPTION 'fee_revision_confirmation_required' USING ERRCODE='P0001';END IF;
+ SELECT * INTO fo FROM campus.payment_fee_supplement_obligations WHERE revision_id=rid;
+ IF fo.id IS NOT NULL THEN SELECT * INTO a FROM campus.payment_fee_supplement_attempts WHERE fee_obligation_id=fo.id;RETURN jsonb_build_object('revisionId',rid,'feeObligationId',fo.id,'attemptId',a.id,'operationId',a.operation_id,'amountCents',fo.amount_cents);END IF;
+ IF (r.body->>'supplementalAmountCents')::bigint=0 THEN RAISE EXCEPTION 'supplemental_payment_not_required' USING ERRCODE='P0001';END IF;
+ INSERT INTO campus.payment_fee_supplement_obligations(revision_id,obligation_id,environment_id,payer_id,amount_cents,source_digest) VALUES(rid,o.id,o.environment_id,o.payer_id,(r.body->>'supplementalAmountCents')::bigint,r.digest) RETURNING * INTO fo;
+ bodyvalue:=jsonb_build_object('attemptId',aid,'obligationId',o.id,'feeObligationId',fo.id,'feeRevisionId',rid,'quoteDigest',r.digest,'amountCents',fo.amount_cents,'currency','usd','sourceDigest',r.digest,'platformAccountId',e.platform_account_id,'mode',e.mode,'returnUrl',e.origin||'/?view=workspace&tab=agreements&resource='||o.aggregate_type||'&id='||o.aggregate_id,'purpose','supplemental_processing_fee_reserve');
+ op:=campus.money_enqueue(e.id,o.id,'fee_supplement_checkout',rid::text,bodyvalue);INSERT INTO campus.payment_fee_supplement_attempts(id,fee_obligation_id,operation_id) VALUES(aid,fo.id,op);
+ RETURN jsonb_build_object('revisionId',rid,'feeObligationId',fo.id,'attemptId',aid,'operationId',op,'amountCents',fo.amount_cents);
+END $$;
+CREATE FUNCTION campus.money_fee_profile_closed(oid uuid,fact jsonb) RETURNS boolean LANGUAGE sql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
+ SELECT coalesce((SELECT p.billing_mode='inline' AND ((p.contract->>'kind'='synthetic_original_charge_balance_v1' AND e.mode='sandbox' AND p.provenance LIKE 'Synthetic:%') OR (p.contract->>'kind'='stripe_standard_inline_charge_balance_v1' AND p.contract->>'pricingModel'='standard_non_ic_plus' AND p.contract->>'source'='https://docs.stripe.com/expand/use-cases' AND p.provenance NOT LIKE 'Synthetic:%' AND p.contract->>'accountEvidenceDigest' ~ '^[a-f0-9]{64}$' AND coalesce(p.contract->>'accountEvidenceRef','')<>'')) AND fact->>'processingFeeSource'='succeeded_captured_original_charge_balance_v1' AND p.platform_account_id=fact->>'platformAccountId' AND fact->>'environmentId'=e.id::text AND coalesce(fact->>'feeFactId','')<>'' FROM campus.payment_billing_bindings b JOIN campus.payment_billing_profiles p ON p.id=b.profile_id JOIN campus.payment_environments e ON e.id=b.environment_id WHERE b.obligation_id=oid),false)
+$$;
+CREATE FUNCTION campus.money_fee_supplement_expected(eid uuid,objectid text) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
+ SELECT jsonb_build_object('id',a.id,'sessionId',a.session_id,'intentId',a.intent_id,'chargeId',a.charge_id,'environmentId',fo.environment_id,'operationId',a.operation_id,'obligationId',fo.obligation_id,'amountCents',fo.amount_cents,'sourceDigest',fo.source_digest,'quoteDigest',r.digest,'platformAccountId',e.platform_account_id,'mode',e.mode,'feeRevisionId',r.id) FROM campus.payment_fee_supplement_attempts a JOIN campus.payment_fee_supplement_obligations fo ON fo.id=a.fee_obligation_id JOIN campus.payment_fee_revisions r ON r.id=fo.revision_id JOIN campus.payment_environments e ON e.id=fo.environment_id WHERE fo.environment_id=eid AND objectid IN(a.id::text,a.session_id,a.intent_id,a.charge_id)
+$$;
+CREATE FUNCTION campus.money_fee_supplement_fact(aid uuid,incoming jsonb) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE a campus.payment_fee_supplement_attempts;fo campus.payment_fee_supplement_obligations;prior campus.payment_fee_supplement_receipts;lid uuid;jid uuid;actual bigint;
+BEGIN
+ SELECT * INTO a FROM campus.payment_fee_supplement_attempts WHERE id=aid;SELECT * INTO fo FROM campus.payment_fee_supplement_obligations WHERE id=a.fee_obligation_id;
+ IF fo.id IS NULL THEN RAISE EXCEPTION 'not_found' USING ERRCODE='P0001';END IF;
+ PERFORM campus.money_lock_aggregate(fo.obligation_id);PERFORM campus.money_cash_lock(fo.environment_id);
+ IF incoming->>'status' IN('requires_action','processing','terminal_unpaid') THEN UPDATE campus.payment_fee_supplement_attempts SET status=CASE WHEN incoming->>'status'='terminal_unpaid' THEN 'canceled' ELSE incoming->>'status' END WHERE id=aid AND status<>'succeeded';RETURN incoming->>'status'='terminal_unpaid';END IF;
+ IF incoming->>'status' IS DISTINCT FROM 'succeeded' OR incoming->>'environmentId' IS DISTINCT FROM fo.environment_id::text OR incoming->>'sessionId' IS DISTINCT FROM a.session_id OR incoming->>'sourceDigest' IS DISTINCT FROM fo.source_digest OR (incoming->>'amountCents')::bigint IS DISTINCT FROM fo.amount_cents OR incoming->>'currency' IS DISTINCT FROM 'usd' OR coalesce(incoming->>'chargeId','')='' OR coalesce(incoming->>'intentId','')='' THEN RAISE EXCEPTION 'provider_fact_mismatch' USING ERRCODE='P0001';END IF;
+ SELECT id INTO lid FROM campus.funding_lots WHERE obligation_id=fo.obligation_id;actual:=(incoming->>'actualFeeCents')::bigint;
+ SELECT * INTO prior FROM campus.payment_fee_supplement_receipts WHERE attempt_id=aid FOR UPDATE;
+ IF prior.attempt_id IS NOT NULL AND (prior.charge_id IS DISTINCT FROM incoming->>'chargeId' OR (prior.fee_cents IS NOT NULL AND actual IS NOT NULL AND (prior.fee_cents<>actual OR prior.fee_fact_id IS DISTINCT FROM incoming->>'feeFactId'))) THEN
+  INSERT INTO campus.payment_fee_evidence_conflicts(environment_id,identity,observation) VALUES(fo.environment_id,'supplement:'||aid::text,jsonb_build_object('observed',incoming)) ON CONFLICT DO NOTHING;PERFORM campus.money_hold(fo.obligation_id,'fee_fact_changed','supplement_fee_changed:'||aid::text,incoming);RETURN false;
+ END IF;
+ IF prior.attempt_id IS NULL THEN
+  jid:=campus.money_journal(fo.environment_id,lid,'fee_supplement_receipt:'||(incoming->>'chargeId'),jsonb_build_array(jsonb_build_object('account','cash','debit',fo.amount_cents),jsonb_build_object('account','publisher_fee_liability','credit',fo.amount_cents)));
+  INSERT INTO campus.payment_fee_supplement_receipts(attempt_id,environment_id,obligation_id,revision_id,charge_id,amount_cents,fact,receipt_journal_id) VALUES(aid,fo.environment_id,fo.obligation_id,fo.revision_id,incoming->>'chargeId',fo.amount_cents,incoming,jid);
+ END IF;
+ IF actual IS NOT NULL AND prior.fee_cents IS NULL THEN
+  IF actual<0 OR coalesce(incoming->>'feeFactId','')='' THEN RAISE EXCEPTION 'provider_fact_mismatch' USING ERRCODE='P0001';END IF;
+  IF EXISTS(SELECT 1 FROM campus.payment_fee_supplement_receipts WHERE environment_id=fo.environment_id AND fee_fact_id=incoming->>'feeFactId' AND attempt_id<>aid) OR EXISTS(SELECT 1 FROM campus.payment_receipt_facts WHERE environment_id=fo.environment_id AND fee_fact_id=incoming->>'feeFactId') OR EXISTS(SELECT 1 FROM campus.payment_fee_cash_facts WHERE environment_id=fo.environment_id AND balance_id=incoming->>'feeFactId') THEN RAISE EXCEPTION 'provider_fact_mismatch' USING ERRCODE='P0001';END IF;
+  IF actual>0 THEN PERFORM campus.money_journal(fo.environment_id,lid,'fee_supplement_fee:'||(incoming->>'feeFactId'),jsonb_build_array(jsonb_build_object('account','fee_expense','debit',actual),jsonb_build_object('account','cash','credit',actual)));END IF;
+  UPDATE campus.payment_fee_supplement_receipts SET fee_cents=actual,fee_fact_id=incoming->>'feeFactId' WHERE attempt_id=aid;
+ END IF;
+ UPDATE campus.payment_fee_supplement_receipts SET available_cents=(incoming->>'availableCents')::bigint,fact=incoming WHERE attempt_id=aid;
+ UPDATE campus.payment_fee_supplement_attempts SET status='succeeded',charge_id=incoming->>'chargeId',intent_id=incoming->>'intentId',hosted_url=NULL WHERE id=aid;
+ RETURN actual IS NOT NULL AND incoming->>'availableCents' IS NOT NULL AND campus.money_fee_charge_closed(fo.obligation_id,incoming->>'chargeId',incoming);
+END $$;
+ALTER FUNCTION campus.money_operation_result(uuid,bigint,jsonb) RENAME TO money_operation_result_before_supplement;
+CREATE FUNCTION campus.money_operation_result(opid uuid,token bigint,outcome jsonb) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE op campus.money_operations;done boolean;
+BEGIN
+ SELECT * INTO op FROM campus.money_operations WHERE id=opid;
+ IF op.kind='fee_supplement_checkout' AND outcome->>'status'='failed_no_effect' THEN
+  PERFORM campus.money_lock_aggregate(op.obligation_id);PERFORM campus.money_cash_lock(op.environment_id);SELECT * INTO op FROM campus.money_operations WHERE id=opid FOR UPDATE;
+  IF op.status<>'dispatching' OR op.fence<>token OR token<>1 OR op.provider_id IS NOT NULL OR op.lease_until<campus.money_now() OR (SELECT attempts FROM campus.payment_outbox WHERE operation_id=opid)<>1 THEN RETURN false;END IF;
+  UPDATE campus.money_operations SET status='failed',lease_until=NULL,result=outcome WHERE id=opid;UPDATE campus.payment_fee_supplement_attempts SET status='failed' WHERE operation_id=opid;UPDATE campus.payment_outbox SET dead_letter=true,last_code='definitive_no_effect' WHERE operation_id=opid;RETURN true;
+ END IF;
+ done:=campus.money_operation_result_before_supplement(opid,token,outcome);
+ IF done AND op.kind='fee_supplement_checkout' THEN
+  IF outcome->>'status'='succeeded' THEN
+   UPDATE campus.payment_fee_supplement_attempts SET session_id=outcome->>'id',hosted_url=outcome->>'url',expires_at=to_timestamp((outcome->>'expiresAt')::double precision),status=CASE WHEN status='succeeded' THEN status ELSE 'requires_action' END WHERE operation_id=opid;
+   PERFORM campus.money_reconcile_schedule(op.environment_id,'fee_supplement',outcome->>'id','{}');
+  ELSIF outcome->>'status'='unknown' THEN UPDATE campus.payment_fee_supplement_attempts SET status='unknown' WHERE operation_id=opid AND status<>'succeeded';END IF;
+ END IF;RETURN done;
+END $$;
+ALTER FUNCTION campus.money_dispatchable(campus.money_operations) RENAME TO money_dispatchable_before_supplement;
+CREATE FUNCTION campus.money_dispatchable(op campus.money_operations) RETURNS boolean LANGUAGE plpgsql SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE r campus.payment_fee_revisions;
+BEGIN
+ IF op.kind<>'fee_supplement_checkout' THEN RETURN campus.money_dispatchable_before_supplement(op);END IF;
+ SELECT * INTO r FROM campus.payment_fee_revisions WHERE id=(op.payload->>'feeRevisionId')::uuid AND obligation_id=op.obligation_id AND environment_id=op.environment_id;
+ RETURN r.id IS NOT NULL AND EXISTS(SELECT 1 FROM campus.payment_environments WHERE id=op.environment_id AND enabled) AND NOT EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts WHERE environment_id=op.environment_id) AND r.base_evidence=campus.money_fee_evidence(r.obligation_id,r.id) AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text(r.body->'participants')who WHERE NOT EXISTS(SELECT 1 FROM campus.payment_fee_revision_confirmations c WHERE c.revision_id=r.id AND c.user_id=who::uuid AND c.digest=r.digest)) AND EXISTS(SELECT 1 FROM campus.users WHERE id=(r.body->>'payerId')::uuid AND account_status='active');
+END $$;
+-- Only the exact fee evidence resolved by this revision is excluded. A later fact
+-- makes the historical resolution inapplicable without altering either row.
+CREATE OR REPLACE VIEW campus.money_active_holds AS SELECT h.* FROM campus.payment_holds h WHERE h.active AND NOT EXISTS(
+ SELECT 1 FROM campus.payment_fee_hold_resolutions rr JOIN campus.payment_fee_revision_settlements ss ON ss.revision_id=rr.revision_id WHERE rr.hold_id=h.id AND rr.evidence_digest=encode(sha256(convert_to(campus.transaction_canonical(campus.money_fee_evidence(h.obligation_id)),'UTF8')),'hex') AND ss.obligation_id=h.obligation_id
+);
+CREATE FUNCTION campus.money_fee_revision_settle(rid uuid) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE r campus.payment_fee_revisions;o campus.funding_obligations;plan campus.payment_fee_plans;f campus.funding_allocations;ev jsonb;computed jsonb;actual bigint;prior_payer bigint;prior_recipient bigint;delta bigint;entries jsonb:='[]';jid uuid;item jsonb;c campus.funding_component_plans;oldfee bigint;used bigint;pay campus.payables;retained bigint;restitution bigint;source record;refundused bigint;piece bigint;fingerprint text;
+BEGIN
+ SELECT * INTO r FROM campus.payment_fee_revisions WHERE id=rid;IF r.id IS NULL THEN RETURN false;END IF;
+ PERFORM campus.money_lock_aggregate(r.obligation_id);SELECT * INTO o FROM campus.funding_obligations WHERE id=r.obligation_id;PERFORM campus.money_cash_lock(o.environment_id);
+ IF EXISTS(SELECT 1 FROM campus.payment_fee_revision_settlements WHERE revision_id=rid) THEN RETURN true;END IF;
+ IF r.revision<>(SELECT max(revision) FROM campus.payment_fee_revisions WHERE obligation_id=o.id) OR r.base_evidence IS DISTINCT FROM campus.money_fee_evidence(o.id,rid) OR EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts WHERE environment_id=o.environment_id) THEN RETURN false;END IF;
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements_text(r.body->'participants')who WHERE NOT EXISTS(SELECT 1 FROM campus.payment_fee_revision_confirmations cc WHERE cc.revision_id=rid AND cc.user_id=who::uuid AND cc.digest=r.digest)) THEN RETURN false;END IF;
+ SELECT pp.* INTO plan FROM campus.payment_fee_plans pp JOIN campus.payment_fee_plan_bindings b ON b.plan_id=pp.id WHERE b.obligation_id=o.id;
+ SELECT ff.* INTO f FROM campus.funding_allocations ff JOIN campus.funding_lots l ON l.id=ff.lot_id WHERE l.obligation_id=o.id;
+ IF f.available_cents IS NULL OR NOT campus.money_fee_charge_closed(o.id,f.charge_id,jsonb_build_object('environmentId',o.environment_id,'platformAccountId',(SELECT platform_account_id FROM campus.payment_environments WHERE id=o.environment_id),'processingFeeSource','succeeded_captured_original_charge_balance_v1','feeFactId',f.fee_fact_id)) THEN RETURN false;END IF;
+ IF (r.body->>'supplementalAmountCents')::bigint>0 AND NOT EXISTS(SELECT 1 FROM campus.payment_fee_supplement_receipts sr WHERE sr.revision_id=rid AND sr.available_cents IS NOT NULL AND sr.fee_cents IS NOT NULL AND campus.money_fee_charge_closed(o.id,sr.charge_id,sr.fact)) THEN RETURN false;END IF;
+ ev:=campus.money_fee_evidence(o.id);IF NOT (ev->>'complete')::boolean THEN RETURN false;END IF;actual:=(ev->>'totalCents')::bigint;
+ IF actual>(r.body->>'maximumTotalFeeCents')::bigint THEN PERFORM campus.money_hold(o.id,'fee_cap_reconfirmation_required','fee_cap_revision:'||rid::text,ev);RETURN false;END IF;
+ retained:=campus.money_fee_retained_payer(o.id);IF retained<(actual+1)/2 THEN RETURN false;END IF;
+ SELECT ss.payer_fee_cents,ss.recipient_fee_cents INTO prior_payer,prior_recipient FROM campus.payment_fee_revision_settlements ss JOIN campus.payment_fee_revisions rr ON rr.id=ss.revision_id WHERE ss.obligation_id=o.id ORDER BY rr.revision DESC LIMIT 1;
+ IF prior_payer IS NULL THEN SELECT payer_fee_cents,recipient_fee_cents INTO prior_payer,prior_recipient FROM campus.payment_fee_settlements WHERE obligation_id=o.id;END IF;
+ prior_payer:=coalesce(prior_payer,0);prior_recipient:=coalesce(prior_recipient,0);
+ IF (actual+1)/2<prior_payer OR actual/2<prior_recipient THEN PERFORM campus.money_hold(o.id,'fee_correction_policy_required','fee_correction:'||rid::text,ev);RETURN false;END IF;
+ computed:=campus.money_reprice_plan(plan.body->'originalPlan',actual);
+ -- Recheck every exact component before any liability posting, under the shared aggregate lock.
+ FOR item IN SELECT value FROM jsonb_array_elements(computed->'lots'->0->'components') LOOP
+  SELECT cc.* INTO c FROM campus.funding_component_plans cc WHERE cc.lot_id=f.lot_id AND cc.member_id=(item->>'memberId')::uuid AND cc.stage_position=(item->>'stagePosition')::int;
+  SELECT coalesce(sum(amount_cents),0) INTO used FROM campus.money_reservations WHERE component_id=c.id AND kind IN('transfer','refund') AND status IN('reserved','consumed');
+  IF used>(item->>'netCents')::bigint THEN PERFORM campus.money_hold(o.id,'recipient_fee_recovery_policy_required','fee_recovery_policy:'||rid::text,jsonb_build_object('componentId',c.id));RETURN false;END IF;
+ END LOOP;
+ IF (actual+1)/2>prior_payer THEN entries:=entries||jsonb_build_array(jsonb_build_object('account','publisher_fee_liability','debit',(actual+1)/2-prior_payer));END IF;
+ FOR item IN SELECT value FROM jsonb_array_elements(computed->'lots'->0->'components') LOOP
+  SELECT cc.* INTO c FROM campus.funding_component_plans cc WHERE cc.lot_id=f.lot_id AND cc.member_id=(item->>'memberId')::uuid AND cc.stage_position=(item->>'stagePosition')::int;
+  IF prior_payer=0 AND prior_recipient=0 THEN oldfee:=0;ELSE SELECT recipient_fee_cents INTO oldfee FROM campus.money_effective_components WHERE id=c.id;END IF;
+  delta:=(item->>'recipientFeeCents')::bigint-oldfee;IF delta<0 THEN RAISE EXCEPTION 'fee_correction_policy_required' USING ERRCODE='P0001';END IF;
+  SELECT * INTO pay FROM campus.payables WHERE component_id=c.id FOR UPDATE;
+  IF delta>0 THEN entries:=entries||jsonb_build_array(jsonb_build_object('account',CASE WHEN pay.id IS NULL THEN 'reward_liability' ELSE 'payable' END,'debit',delta,'memberId',c.member_id,'componentId',c.id));END IF;
+  IF pay.id IS NOT NULL THEN UPDATE campus.payables SET net_cents=(item->>'netCents')::bigint WHERE id=pay.id;END IF;
+ END LOOP;
+ delta:=actual-prior_payer-prior_recipient;IF delta>0 THEN entries:=entries||jsonb_build_array(jsonb_build_object('account','fee_recovery','credit',delta));jid:=campus.money_journal(o.environment_id,f.lot_id,'fee_revision_recovery:'||rid::text,entries);END IF;
+ fingerprint:=encode(sha256(convert_to(campus.transaction_canonical(ev),'UTF8')),'hex');
+ INSERT INTO campus.payment_fee_revision_settlements VALUES(rid,o.id,actual,(actual+1)/2,actual/2,computed,ev,fingerprint,jid,campus.money_now());
+ UPDATE campus.money_reservations SET status='consumed' WHERE lot_id=f.lot_id AND kind IN('publisher_fee','recipient_fee') AND status='reserved';
+ INSERT INTO campus.fee_consumptions SELECT rr.id,o.environment_id,f.lot_id,'fee_revision:'||rid::text,coalesce(jid,f.receipt_journal_id) FROM campus.money_reservations rr WHERE rr.lot_id=f.lot_id AND rr.kind IN('publisher_fee','recipient_fee') ON CONFLICT DO NOTHING;
+ UPDATE campus.funding_allocations SET fee_state='matched' WHERE lot_id=f.lot_id;
+ INSERT INTO campus.payment_fee_hold_resolutions SELECT h.id,rid,fingerprint FROM campus.payment_holds h WHERE h.obligation_id=o.id AND h.reason='fee_cap_reconfirmation_required' AND h.active ON CONFLICT DO NOTHING;
+ restitution:=retained-(actual+1)/2;
+ -- Refund newest reserve first, then original reserve; never exceed a charge's retained contribution.
+ FOR source IN SELECT charge_id,amount_cents,rank FROM (SELECT sr.charge_id,sr.amount_cents,rr.revision AS rank FROM campus.payment_fee_supplement_receipts sr JOIN campus.payment_fee_revisions rr ON rr.id=sr.revision_id WHERE sr.obligation_id=o.id UNION ALL SELECT f.charge_id,o.publisher_fee_cents,0) sources ORDER BY rank DESC LOOP
+  EXIT WHEN restitution=0;
+  SELECT coalesce(sum(mr.amount_cents),0) INTO refundused FROM campus.money_reservations mr JOIN campus.money_operations mo ON mo.id=mr.operation_id WHERE mo.obligation_id=o.id AND mr.kind='fee_restitution' AND mr.status IN('reserved','consumed') AND mo.payload->>'sourceCharge'=source.charge_id;
+  piece:=least(restitution,greatest(0,source.amount_cents-refundused));IF piece>0 THEN INSERT INTO campus.payment_fee_revision_restitutions(revision_id,obligation_id,environment_id,charge_id,amount_cents) VALUES(rid,o.id,o.environment_id,source.charge_id,piece);restitution:=restitution-piece;END IF;
+ END LOOP;
+ IF restitution<>0 THEN RAISE EXCEPTION 'restitution_source_mismatch' USING ERRCODE='P0001';END IF;RETURN true;
+END $$;
+CREATE OR REPLACE VIEW campus.money_effective_components AS
+ SELECT c.id,c.lot_id,c.environment_id,c.allocation_component_id,c.member_id,c.milestone_id,c.stage_position,c.gross_cents,
+ coalesce((newest.item->>'recipientFeeCents')::bigint,s.recipient_fee_cents,c.recipient_fee_cents) AS recipient_fee_cents,
+ coalesce((newest.item->>'netCents')::bigint,s.net_cents,c.net_cents) AS net_cents
+ FROM campus.funding_component_plans c LEFT JOIN campus.payment_fee_settlement_components s ON s.component_id=c.id
+ LEFT JOIN LATERAL(SELECT i AS item FROM campus.payment_fee_revision_settlements ss JOIN campus.payment_fee_revisions rr ON rr.id=ss.revision_id JOIN campus.funding_lots l ON l.obligation_id=ss.obligation_id CROSS JOIN LATERAL jsonb_array_elements(ss.actual_plan->'lots'->0->'components')i WHERE l.id=c.lot_id AND i->>'memberId'=c.member_id::text AND (i->>'stagePosition')::int=c.stage_position ORDER BY rr.revision DESC LIMIT 1)newest ON true;
+ALTER FUNCTION campus.money_prepare_restitution(uuid,uuid) RENAME TO money_prepare_restitution_before_revision;
+CREATE FUNCTION campus.money_prepare_restitution(eid uuid,oid uuid) RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE rr campus.payment_fee_revision_restitutions;op campus.money_operations;newid uuid;lid uuid;n integer:=0;generation integer;
+BEGIN
+ PERFORM campus.money_lock_aggregate(oid);PERFORM campus.money_cash_lock(eid);
+ IF NOT EXISTS(SELECT 1 FROM campus.payment_fee_revision_settlements WHERE obligation_id=oid) THEN RETURN campus.money_prepare_restitution_before_revision(eid,oid);END IF;
+ IF EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts WHERE environment_id=eid) OR EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=oid) OR campus.money_cash_headroom(eid,NULL)<0 OR campus.money_cash_headroom(eid,(SELECT id FROM campus.funding_lots WHERE obligation_id=oid))<0 THEN RETURN 0;END IF;
+ SELECT id INTO lid FROM campus.funding_lots WHERE obligation_id=oid AND environment_id=eid;
+ FOR rr IN SELECT * FROM campus.payment_fee_revision_restitutions WHERE obligation_id=oid AND environment_id=eid ORDER BY id LOOP
+  SELECT * INTO op FROM campus.money_operations WHERE obligation_id=oid AND kind='fee_restitution' AND payload->>'restitutionId'=rr.id::text ORDER BY created_at DESC,id DESC LIMIT 1;
+  IF op.id IS NOT NULL AND (op.status<>'failed' OR NOT EXISTS(SELECT 1 FROM campus.money_reservations WHERE operation_id=op.id AND status='released')) THEN CONTINUE;END IF;
+  generation:=coalesce((op.payload->>'generation')::int,0)+1;
+  newid:=campus.money_enqueue(eid,oid,'fee_restitution','revision:'||rr.id::text||':'||generation,jsonb_build_object('restitutionId',rr.id,'feeRevisionId',rr.revision_id,'generation',generation,'amountCents',rr.amount_cents,'currency','usd','sourceCharge',rr.charge_id,'purpose','unused_preconsented_payer_fee_reserve','sourceDigest',(SELECT digest FROM campus.payment_fee_revisions WHERE id=rr.revision_id)));
+  INSERT INTO campus.money_reservations(environment_id,lot_id,operation_id,kind,amount_cents) VALUES(eid,lid,newid,'fee_restitution',rr.amount_cents);n:=n+1;
+ END LOOP;RETURN n;
+END $$;
+CREATE FUNCTION campus.money_fee_revision_targets(eid uuid,oid uuid) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
+ SELECT coalesce(jsonb_agg(id),'[]') FROM (SELECT r.id FROM campus.payment_fee_revisions r WHERE r.environment_id=eid AND r.obligation_id=oid ORDER BY r.revision DESC LIMIT 1) q
+$$;
+DO $$ DECLARE t text;p record;BEGIN
+ FOREACH t IN ARRAY ARRAY['payment_fee_revisions','payment_fee_revision_confirmations','payment_fee_supplement_obligations','payment_fee_supplement_attempts','payment_fee_supplement_receipts','payment_fee_revision_settlements','payment_fee_hold_resolutions','payment_fee_revision_restitutions'] LOOP
+  EXECUTE format('ALTER TABLE campus.%I ENABLE ROW LEVEL SECURITY',t);EXECUTE format('REVOKE ALL ON campus.%I FROM PUBLIC,campus_app,campus_auth,campus_worker',t);
+  IF t NOT IN('payment_fee_supplement_attempts','payment_fee_supplement_receipts') THEN EXECUTE format('CREATE TRIGGER immutable_money BEFORE UPDATE OR DELETE ON campus.%I FOR EACH ROW EXECUTE FUNCTION campus.money_immutable()',t);END IF;
+  EXECUTE format('CREATE TRIGGER money_effect AFTER INSERT OR UPDATE OR DELETE ON campus.%I FOR EACH ROW EXECUTE FUNCTION campus.money_capture_effect()',t);
+ END LOOP;
+ FOR p IN SELECT oid::regprocedure signature FROM pg_proc WHERE pronamespace='campus'::regnamespace AND proname IN('money_fee_evidence','money_fee_retained_payer','money_fee_revision_propose','money_fee_revision_confirm','money_fee_revision_start','money_fee_profile_closed','money_fee_supplement_expected','money_fee_supplement_fact','money_operation_result','money_operation_result_before_supplement','money_dispatchable','money_dispatchable_before_supplement','money_fee_revision_settle','money_prepare_restitution','money_prepare_restitution_before_revision','money_fee_revision_targets') LOOP EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,campus_app,campus_auth,campus_worker',p.signature);END LOOP;
+END $$;
+GRANT EXECUTE ON FUNCTION campus.money_fee_revision_propose(uuid,jsonb),campus.money_fee_revision_confirm(uuid,jsonb),campus.money_fee_revision_start(uuid,jsonb) TO campus_app;
+GRANT EXECUTE ON FUNCTION campus.money_fee_supplement_expected(uuid,text),campus.money_fee_supplement_fact(uuid,jsonb),campus.money_operation_result(uuid,bigint,jsonb),campus.money_fee_revision_settle(uuid),campus.money_prepare_restitution(uuid,uuid),campus.money_fee_revision_targets(uuid,uuid) TO campus_worker;
+
+-- Supplemental receipts add only verified available net; their original fee is offset exactly once.
+CREATE OR REPLACE FUNCTION campus.money_cash_raw(eid uuid,lid uuid DEFAULT NULL) RETURNS bigint LANGUAGE sql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
+ WITH cash AS (
+  SELECT coalesce(sum(ll.debit-ll.credit),0) AS book,coalesce(sum(ll.credit),0) AS debits FROM campus.ledger_lines ll JOIN campus.ledger_journals j ON j.id=ll.journal_id WHERE j.environment_id=eid AND (lid IS NULL OR j.lot_id=lid) AND ll.account='cash'
+ ), originals AS (
+  SELECT coalesce(sum(available),0) AS available,coalesce(sum(fee),0) AS original_fees FROM (SELECT coalesce(available_cents,0) available,coalesce(actual_fee_cents,0) fee FROM campus.funding_allocations WHERE environment_id=eid AND (lid IS NULL OR lot_id=lid) UNION ALL SELECT coalesce(sr.available_cents,0),coalesce(sr.fee_cents,0) FROM campus.payment_fee_supplement_receipts sr JOIN campus.funding_lots l ON l.obligation_id=sr.obligation_id WHERE sr.environment_id=eid AND (lid IS NULL OR l.id=lid)) verified_receipts
+ ), reserved AS (
+  SELECT coalesce(sum(amount_cents-cash_debited_cents),0) AS amount FROM campus.money_reservations WHERE environment_id=eid AND (lid IS NULL OR lot_id=lid) AND kind IN('transfer','refund','fee_restitution') AND status='reserved'
+ ), unresolved_fees AS (
+  SELECT coalesce(sum(greatest(0,(SELECT coalesce(sum(amount_cents),0) FROM campus.money_reservations r WHERE r.lot_id=f.lot_id AND kind IN('publisher_fee','recipient_fee') AND status='reserved')-coalesce(f.actual_fee_cents,0)-coalesce((SELECT sum(a.amount_cents) FROM campus.payment_fee_attributions a WHERE a.lot_id=f.lot_id),0))),0) AS amount FROM campus.funding_allocations f WHERE f.environment_id=eid AND (lid IS NULL OR f.lot_id=lid)
+ ), restitution_due AS (
+  SELECT coalesce(sum(amount),0) AS amount FROM (
+ SELECT greatest(0,s.restitution_cents-coalesce((SELECT sum(r.amount_cents) FROM campus.money_reservations r WHERE r.lot_id=s.lot_id AND r.kind='fee_restitution' AND r.status IN('reserved','consumed')),0)) AS amount FROM campus.payment_fee_settlements s WHERE s.environment_id=eid AND (lid IS NULL OR s.lot_id=lid) AND NOT EXISTS(SELECT 1 FROM campus.payment_fee_revision_settlements rs WHERE rs.obligation_id=s.obligation_id)
+ UNION ALL SELECT greatest(0,rr.amount_cents-coalesce((SELECT sum(r.amount_cents) FROM campus.money_reservations r JOIN campus.money_operations m ON m.id=r.operation_id WHERE m.payload->>'restitutionId'=rr.id::text AND r.kind='fee_restitution' AND r.status IN('reserved','consumed')),0)) FROM campus.payment_fee_revision_restitutions rr JOIN campus.funding_lots l ON l.obligation_id=rr.obligation_id WHERE rr.environment_id=eid AND (lid IS NULL OR l.id=lid)
+ ) owed
+ )
+ SELECT least(cash.book,originals.available
+  +coalesce((SELECT sum(net_cents) FROM campus.payment_balance_facts WHERE environment_id=eid AND (lid IS NULL OR lot_id=lid) AND net_cents>0 AND available),0)
+  +coalesce((SELECT sum(net_cents) FROM campus.payment_external_balance_facts WHERE environment_id=eid AND (lid IS NULL OR lot_id=lid) AND net_cents>0 AND available),0)
+  +coalesce((SELECT sum(net_cents) FROM campus.payment_restitution_balance_facts WHERE environment_id=eid AND (lid IS NULL OR lot_id=lid) AND net_cents>0 AND available),0)
+  +coalesce((SELECT sum(amount_cents) FROM campus.payment_network_balance_facts WHERE environment_id=eid AND (lid IS NULL OR lot_id=lid) AND kind='credit' AND available),0)
+  -cash.debits+originals.original_fees)-reserved.amount-unresolved_fees.amount-restitution_due.amount-CASE WHEN lid IS NULL THEN 0 ELSE coalesce((SELECT sum(amount_cents) FROM campus.payment_fee_attributions WHERE environment_id=eid AND lot_id=lid),0) END FROM cash,originals,reserved,unresolved_fees,restitution_due
+$$;
+CREATE FUNCTION campus.money_fee_revision_read(oid uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE o campus.funding_obligations;r campus.payment_fee_revisions;p campus.payment_execution_policies;ev jsonb;confirmed jsonb;actions jsonb:='["refresh"]';state text:='not_proposed';a campus.payment_fee_supplement_attempts;ss campus.payment_fee_revision_settlements;
+BEGIN
+ SELECT * INTO o FROM campus.funding_obligations WHERE id=oid;IF o.id IS NULL THEN RAISE EXCEPTION 'not_found' USING ERRCODE='P0001';END IF;PERFORM campus.money_projection(o.aggregate_type,o.aggregate_id);
+ ev:=campus.money_fee_evidence(oid);SELECT * INTO r FROM campus.payment_fee_revisions WHERE obligation_id=oid ORDER BY revision DESC LIMIT 1;
+ SELECT * INTO p FROM campus.payment_execution_policies WHERE environment_id=o.environment_id AND aggregate_type=o.aggregate_type AND aggregate_id=o.aggregate_id AND purpose='collection' AND status='approved' AND payload->>'originalObligationId'=oid::text AND payload->>'originalSourceDigest'=o.source_digest AND payload ? 'supplementalEstimatedFeeCents' ORDER BY version DESC LIMIT 1;
+ IF r.id IS NOT NULL THEN
+  SELECT coalesce(jsonb_agg(user_id ORDER BY user_id),'[]') INTO confirmed FROM campus.payment_fee_revision_confirmations WHERE revision_id=r.id;
+  SELECT aa.* INTO a FROM campus.payment_fee_supplement_attempts aa JOIN campus.payment_fee_supplement_obligations fo ON fo.id=aa.fee_obligation_id WHERE fo.revision_id=r.id;
+  SELECT * INTO ss FROM campus.payment_fee_revision_settlements WHERE revision_id=r.id;
+  state:=CASE WHEN ss.revision_id IS NOT NULL AND ss.evidence IS DISTINCT FROM ev THEN 'evidence_changed' WHEN ss.revision_id IS NOT NULL THEN 'settled' WHEN (ev->>'complete')::boolean AND (ev->>'totalCents')::bigint>(r.body->>'maximumTotalFeeCents')::bigint THEN 'fee_reconfirmation_required' WHEN r.base_evidence IS DISTINCT FROM campus.money_fee_evidence(oid,r.id) THEN 'evidence_changed' WHEN a.status IN('failed','canceled') THEN 'unpaid_terminal' WHEN a.id IS NOT NULL THEN 'awaiting_fee_facts' WHEN jsonb_array_length(confirmed)<jsonb_array_length(r.body->'participants') THEN 'awaiting_confirmations' WHEN (r.body->>'supplementalAmountCents')::bigint=0 THEN 'awaiting_settlement' ELSE 'ready_to_collect' END;
+  IF state='awaiting_confirmations' AND r.body->'participants' ? campus.actor()::text AND NOT confirmed ? campus.actor()::text THEN actions:=actions||'"confirm_fee_revision"'::jsonb;END IF;
+  IF state='ready_to_collect' AND campus.actor()=o.payer_id THEN actions:=actions||'"start_fee_supplement"'::jsonb;END IF;
+  IF a.status='requires_action' AND a.expires_at>campus.money_now() AND campus.actor()=o.payer_id THEN actions:=actions||'"open_fee_checkout"'::jsonb;END IF;
+ END IF;
+ IF campus.actor()=o.payer_id AND p.id IS NOT NULL AND (ev->>'complete')::boolean AND (r.id IS NULL OR state IN('settled','evidence_changed','unpaid_terminal','fee_reconfirmation_required') OR (state='awaiting_fee_facts' AND a.status='succeeded' AND (ev->>'totalCents')::bigint>(r.body->>'maximumTotalFeeCents')::bigint)) THEN actions:=actions||'"propose_fee_revision"'::jsonb;END IF;
+ IF NOT EXISTS(SELECT 1 FROM campus.payment_environments WHERE id=o.environment_id AND enabled) OR NOT EXISTS(SELECT 1 FROM campus.users WHERE id=campus.actor() AND account_status='active') THEN actions:='["refresh"]';END IF;
+ RETURN jsonb_build_object('obligationId',oid,'environmentId',o.environment_id,'policyVersionId',p.id,'policyDigest',p.digest,'evidence',ev,'evidenceDigest',encode(sha256(convert_to(campus.transaction_canonical(ev),'UTF8')),'hex'),'revisionId',r.id,'revision',r.revision,'digest',r.digest,'plan',r.body,'confirmedParticipantIds',coalesce(confirmed,'[]'),'state',state,'allowedActions',actions,'attempt',CASE WHEN a.id IS NOT NULL THEN jsonb_build_object('id',a.id,'operationId',a.operation_id,'status',a.status,'hostedUrl',CASE WHEN campus.actor()=o.payer_id AND a.status='requires_action' AND a.expires_at>campus.money_now() THEN a.hosted_url END,'expiresAt',a.expires_at) END,'settledActualFeeCents',ss.actual_fee_cents::text,'blockedReasons',CASE WHEN state='fee_reconfirmation_required' THEN '["fee_cap_reconfirmation_required"]'::jsonb WHEN state='evidence_changed' THEN '["fee_evidence_refresh_required"]'::jsonb WHEN p.id IS NULL THEN '["supplemental_fee_estimate_or_policy_required"]'::jsonb WHEN NOT (ev->>'complete')::boolean THEN '["fee_evidence_pending"]'::jsonb ELSE '[]'::jsonb END);
+END $$;
+CREATE FUNCTION campus.money_fee_revision_current(rid uuid) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$ SELECT campus.money_fee_revision_read(obligation_id) FROM campus.payment_fee_revisions WHERE id=rid $$;
+REVOKE ALL ON FUNCTION campus.money_fee_revision_read(uuid),campus.money_fee_revision_current(uuid) FROM PUBLIC,campus_app,campus_auth,campus_worker;
+GRANT EXECUTE ON FUNCTION campus.money_fee_revision_read(uuid),campus.money_fee_revision_current(uuid) TO campus_app;
+ALTER FUNCTION campus.money_find_attempt(uuid,text) RENAME TO money_find_attempt_before_supplement;
+CREATE FUNCTION campus.money_find_attempt(eid uuid,objectid text) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$ SELECT coalesce(campus.money_find_attempt_before_supplement(eid,objectid),campus.money_fee_supplement_expected(eid,objectid)) $$;
+REVOKE ALL ON FUNCTION campus.money_find_attempt_before_supplement(uuid,text),campus.money_find_attempt(uuid,text) FROM PUBLIC,campus_app,campus_auth,campus_worker;
+GRANT EXECUTE ON FUNCTION campus.money_find_attempt(uuid,text) TO campus_worker;
+-- A report may identify a supplemental charge without granting principal authority.
+CREATE TABLE campus.payment_fee_supplement_attributions (
+ environment_id uuid NOT NULL,semantic_id text NOT NULL,balance_id text NOT NULL,attempt_id uuid NOT NULL REFERENCES campus.payment_fee_supplement_receipts,
+ lot_id uuid NOT NULL REFERENCES campus.funding_lots,obligation_id uuid NOT NULL REFERENCES campus.funding_obligations,charge_id text NOT NULL,amount_cents bigint NOT NULL CHECK(amount_cents>=0),profile_id uuid NOT NULL REFERENCES campus.payment_billing_profiles,
+ PRIMARY KEY(environment_id,semantic_id),FOREIGN KEY(environment_id,semantic_id) REFERENCES campus.payment_fee_report_rows,FOREIGN KEY(environment_id,balance_id) REFERENCES campus.payment_fee_cash_facts
+);
+ALTER TABLE campus.payment_fee_supplement_attributions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON campus.payment_fee_supplement_attributions FROM PUBLIC,campus_app,campus_auth,campus_worker;
+CREATE TRIGGER immutable_money BEFORE UPDATE OR DELETE ON campus.payment_fee_supplement_attributions FOR EACH ROW EXECUTE FUNCTION campus.money_immutable();
+CREATE TRIGGER money_effect AFTER INSERT ON campus.payment_fee_supplement_attributions FOR EACH ROW EXECUTE FUNCTION campus.money_capture_effect();
+ALTER FUNCTION campus.money_fee_attribute(uuid,text) RENAME TO money_fee_attribute_original;
+CREATE FUNCTION campus.money_fee_attribute(eid uuid,semantic text) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE rowvalue jsonb;receipt campus.payment_fee_supplement_receipts;p campus.payment_billing_profiles;amount bigint;cash campus.payment_fee_cash_facts;lid uuid;
+BEGIN
+ IF campus.money_fee_attribute_original(eid,semantic) THEN RETURN true;END IF;
+ SELECT body INTO rowvalue FROM campus.payment_fee_report_rows WHERE environment_id=eid AND semantic_id=semantic;
+ IF rowvalue IS NULL OR rowvalue->>'incurredByType'<>'charge' OR rowvalue->>'settledVia'<>'balance' THEN RETURN false;END IF;
+ SELECT * INTO receipt FROM campus.payment_fee_supplement_receipts WHERE environment_id=eid AND charge_id=rowvalue->>'incurredBy';IF NOT FOUND THEN RETURN false;END IF;
+ PERFORM campus.money_lock_aggregate(receipt.obligation_id);PERFORM campus.money_cash_lock(eid);
+ IF EXISTS(SELECT 1 FROM campus.payment_fee_supplement_attributions WHERE environment_id=eid AND semantic_id=semantic) THEN RETURN true;END IF;
+ SELECT id INTO lid FROM campus.funding_lots WHERE obligation_id=receipt.obligation_id;
+ SELECT * INTO p FROM campus.payment_billing_profiles WHERE id=(SELECT profile_id FROM campus.payment_billing_bindings WHERE obligation_id=receipt.obligation_id);
+ IF p.id IS NULL OR NOT coalesce(p.contract->'processingFeatures','[]') @> jsonb_build_array(jsonb_build_object('product',rowvalue->>'product','feature',rowvalue->>'feature')) OR (p.contract->>'kind' LIKE 'synthetic_%' AND (SELECT mode FROM campus.payment_environments WHERE id=eid)<>'sandbox') THEN RETURN false;END IF;
+ amount:=(rowvalue->>'amountCents')::bigint;
+ IF (rowvalue->>'taxCents')::bigint<>0 OR amount<0 THEN PERFORM campus.money_hold(receipt.obligation_id,'fee_tax_authority_unresolved','fee_tax:'||semantic,rowvalue);RETURN false;END IF;
+ SELECT * INTO cash FROM campus.payment_fee_cash_facts WHERE environment_id=eid AND balance_id=rowvalue->>'balanceId';IF NOT FOUND THEN RETURN false;END IF;
+ IF EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts WHERE environment_id=eid AND identity IN('row:'||semantic,'balance:'||cash.balance_id)) OR coalesce((SELECT sum(amount_cents) FROM campus.payment_fee_attributions WHERE environment_id=eid AND balance_id=cash.balance_id),0)+coalesce((SELECT sum(amount_cents) FROM campus.payment_fee_supplement_attributions WHERE environment_id=eid AND balance_id=cash.balance_id),0)+amount>-cash.net_cents THEN PERFORM campus.money_hold(receipt.obligation_id,'fee_attribution_conflict','fee_attribution:'||semantic,rowvalue);RETURN false;END IF;
+ INSERT INTO campus.payment_fee_supplement_attributions VALUES(eid,semantic,cash.balance_id,receipt.attempt_id,lid,receipt.obligation_id,receipt.charge_id,amount,p.id);
+ IF amount>0 THEN
+  PERFORM campus.money_journal(eid,NULL,'fee_attribution_global:'||semantic,jsonb_build_array(jsonb_build_object('account','fee_expense','credit',amount),jsonb_build_object('account','network_exposure','debit',amount)));
+  PERFORM campus.money_journal(eid,lid,'fee_attribution_lot:'||semantic,jsonb_build_array(jsonb_build_object('account','fee_expense','debit',amount),jsonb_build_object('account','network_exposure','credit',amount)));
+ END IF;
+ IF EXISTS(SELECT 1 FROM campus.payment_fee_revision_settlements WHERE obligation_id=receipt.obligation_id) THEN PERFORM campus.money_hold(receipt.obligation_id,'later_fee_correction','later_fee:'||semantic,rowvalue);END IF;RETURN true;
+END $$;
+CREATE FUNCTION campus.money_fee_charge_closed(oid uuid,chargeid text,fact jsonb) RETURNS boolean LANGUAGE plpgsql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE p campus.payment_billing_profiles;closure jsonb;artifact campus.payment_fee_report_artifacts;observed jsonb;attributed jsonb;
+BEGIN
+ IF campus.money_fee_profile_closed(oid,fact) THEN RETURN true;END IF;
+ SELECT pp.* INTO p FROM campus.payment_billing_profiles pp JOIN campus.payment_billing_bindings b ON b.profile_id=pp.id WHERE b.obligation_id=oid;
+ IF p.contract->>'kind' IS DISTINCT FROM 'synthetic_report_artifact_v1' OR (SELECT mode FROM campus.payment_environments WHERE id=p.environment_id)<>'sandbox' OR p.provenance NOT LIKE 'Synthetic:%' OR coalesce(fact->>'feeFactId','')='' THEN RETURN false;END IF;
+ SELECT evidence INTO closure FROM campus.payment_synthetic_fee_closures WHERE profile_id=p.id AND environment_id=p.environment_id AND charge_id=chargeid;
+ SELECT * INTO artifact FROM campus.payment_fee_report_artifacts WHERE environment_id=p.environment_id AND run_id=closure->>'runId';
+ IF artifact.run_id IS NULL OR artifact.file_id IS DISTINCT FROM closure->>'fileId' OR artifact.content_digest IS DISTINCT FROM closure->>'contentDigest' OR artifact.interval_start IS DISTINCT FROM (closure->>'intervalStart')::bigint OR artifact.interval_end IS DISTINCT FROM (closure->>'intervalEnd')::bigint THEN RETURN false;END IF;
+ SELECT coalesce(jsonb_agg(r.semantic_id ORDER BY r.semantic_id),'[]') INTO observed FROM campus.payment_fee_report_rows r JOIN campus.payment_fee_report_memberships m USING(environment_id,semantic_id) WHERE r.environment_id=p.environment_id AND m.run_id=artifact.run_id AND r.body->>'incurredBy'=chargeid;
+ SELECT coalesce(jsonb_agg(a.semantic_id ORDER BY a.semantic_id),'[]') INTO attributed FROM (SELECT semantic_id FROM campus.payment_fee_attributions WHERE environment_id=p.environment_id AND charge_id=chargeid UNION SELECT semantic_id FROM campus.payment_fee_supplement_attributions WHERE environment_id=p.environment_id AND charge_id=chargeid)a JOIN campus.payment_fee_report_memberships m ON m.environment_id=p.environment_id AND m.semantic_id=a.semantic_id AND m.run_id=artifact.run_id;
+ RETURN observed=closure->'semanticIds' AND attributed=observed AND NOT EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts WHERE environment_id=p.environment_id);
+END $$;
+REVOKE ALL ON FUNCTION campus.money_fee_attribute_original(uuid,text),campus.money_fee_attribute(uuid,text),campus.money_fee_charge_closed(uuid,text,jsonb) FROM PUBLIC,campus_app,campus_auth,campus_worker;
+GRANT EXECUTE ON FUNCTION campus.money_fee_attribute(uuid,text) TO campus_worker;
+
+CREATE OR REPLACE FUNCTION campus.money_fee_evidence(oid uuid,exclude_revision uuid DEFAULT NULL) RETURNS jsonb LANGUAGE sql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
+ SELECT jsonb_build_object('facts',coalesce(jsonb_agg(v ORDER BY v->>'identity'),'[]'::jsonb),'totalCents',coalesce(sum((v->>'feeCents')::bigint),0),'complete',coalesce(bool_and((v->>'verified')::boolean),false)) FROM (
+ SELECT jsonb_build_object('identity','original:'||f.charge_id,'chargeId',f.charge_id,'balanceId',f.fee_fact_id,'feeCents',f.actual_fee_cents,'verified',f.actual_fee_cents IS NOT NULL AND f.fee_fact_id IS NOT NULL) v FROM campus.funding_allocations f JOIN campus.funding_lots l ON l.id=f.lot_id WHERE l.obligation_id=oid
+ UNION ALL SELECT jsonb_build_object('identity','report:'||a.semantic_id,'chargeId',a.charge_id,'balanceId',a.balance_id,'feeCents',a.amount_cents,'verified',true) FROM campus.payment_fee_attributions a WHERE a.obligation_id=oid
+ UNION ALL SELECT jsonb_build_object('identity','supplement:'||r.charge_id,'chargeId',r.charge_id,'balanceId',r.fee_fact_id,'feeCents',r.fee_cents,'verified',r.fee_cents IS NOT NULL AND r.fee_fact_id IS NOT NULL) FROM campus.payment_fee_supplement_receipts r WHERE r.obligation_id=oid AND r.revision_id IS DISTINCT FROM exclude_revision
+ UNION ALL SELECT jsonb_build_object('identity','report:'||a.semantic_id,'chargeId',a.charge_id,'balanceId',a.balance_id,'feeCents',a.amount_cents,'verified',true) FROM campus.payment_fee_supplement_attributions a JOIN campus.payment_fee_supplement_receipts r ON r.attempt_id=a.attempt_id WHERE a.obligation_id=oid AND r.revision_id IS DISTINCT FROM exclude_revision
+ ) facts
+$$;
+
+CREATE OR REPLACE FUNCTION campus.money_cash_raw(eid uuid,lid uuid DEFAULT NULL) RETURNS bigint LANGUAGE sql STABLE SET search_path=pg_catalog,campus,pg_temp AS $$
+ WITH cash AS (
+  SELECT coalesce(sum(ll.debit-ll.credit),0) AS book,coalesce(sum(ll.credit),0) AS debits FROM campus.ledger_lines ll JOIN campus.ledger_journals j ON j.id=ll.journal_id WHERE j.environment_id=eid AND (lid IS NULL OR j.lot_id=lid) AND ll.account='cash'
+ ), originals AS (
+  SELECT coalesce(sum(available),0) AS available,coalesce(sum(fee),0) AS original_fees FROM (SELECT coalesce(available_cents,0) available,coalesce(actual_fee_cents,0) fee FROM campus.funding_allocations WHERE environment_id=eid AND (lid IS NULL OR lot_id=lid) UNION ALL SELECT coalesce(sr.available_cents,0),coalesce(sr.fee_cents,0) FROM campus.payment_fee_supplement_receipts sr JOIN campus.funding_lots l ON l.obligation_id=sr.obligation_id WHERE sr.environment_id=eid AND (lid IS NULL OR l.id=lid)) verified_receipts
+ ), reserved AS (
+  SELECT coalesce(sum(amount_cents-cash_debited_cents),0) AS amount FROM campus.money_reservations WHERE environment_id=eid AND (lid IS NULL OR lot_id=lid) AND kind IN('transfer','refund','fee_restitution') AND status='reserved'
+ ), unresolved_fees AS (
+  SELECT coalesce(sum(greatest(0,(SELECT coalesce(sum(amount_cents),0) FROM campus.money_reservations r WHERE r.lot_id=f.lot_id AND kind IN('publisher_fee','recipient_fee') AND status='reserved')-coalesce(f.actual_fee_cents,0)-coalesce((SELECT sum(a.amount_cents) FROM campus.payment_fee_attributions a WHERE a.lot_id=f.lot_id),0))),0) AS amount FROM campus.funding_allocations f WHERE f.environment_id=eid AND (lid IS NULL OR f.lot_id=lid)
+ ), restitution_due AS (
+  SELECT coalesce(sum(amount),0) AS amount FROM (
+ SELECT greatest(0,s.restitution_cents-coalesce((SELECT sum(r.amount_cents) FROM campus.money_reservations r WHERE r.lot_id=s.lot_id AND r.kind='fee_restitution' AND r.status IN('reserved','consumed')),0)) AS amount FROM campus.payment_fee_settlements s WHERE s.environment_id=eid AND (lid IS NULL OR s.lot_id=lid) AND NOT EXISTS(SELECT 1 FROM campus.payment_fee_revision_settlements rs WHERE rs.obligation_id=s.obligation_id)
+ UNION ALL SELECT greatest(0,rr.amount_cents-coalesce((SELECT sum(r.amount_cents) FROM campus.money_reservations r JOIN campus.money_operations m ON m.id=r.operation_id WHERE m.payload->>'restitutionId'=rr.id::text AND r.kind='fee_restitution' AND r.status IN('reserved','consumed')),0)) FROM campus.payment_fee_revision_restitutions rr JOIN campus.funding_lots l ON l.obligation_id=rr.obligation_id WHERE rr.environment_id=eid AND (lid IS NULL OR l.id=lid)
+ ) owed
+ )
+ SELECT least(cash.book,originals.available
+  +coalesce((SELECT sum(net_cents) FROM campus.payment_balance_facts WHERE environment_id=eid AND (lid IS NULL OR lot_id=lid) AND net_cents>0 AND available),0)
+  +coalesce((SELECT sum(net_cents) FROM campus.payment_external_balance_facts WHERE environment_id=eid AND (lid IS NULL OR lot_id=lid) AND net_cents>0 AND available),0)
+  +coalesce((SELECT sum(net_cents) FROM campus.payment_restitution_balance_facts WHERE environment_id=eid AND (lid IS NULL OR lot_id=lid) AND net_cents>0 AND available),0)
+  +coalesce((SELECT sum(amount_cents) FROM campus.payment_network_balance_facts WHERE environment_id=eid AND (lid IS NULL OR lot_id=lid) AND kind='credit' AND available),0)
+  -cash.debits+originals.original_fees)-reserved.amount-unresolved_fees.amount-restitution_due.amount-CASE WHEN lid IS NULL THEN 0 ELSE coalesce((SELECT sum(amount_cents) FROM campus.payment_fee_attributions WHERE environment_id=eid AND lot_id=lid),0)+coalesce((SELECT sum(amount_cents) FROM campus.payment_fee_supplement_attributions WHERE environment_id=eid AND lot_id=lid),0) END FROM cash,originals,reserved,unresolved_fees,restitution_due
+$$;
+CREATE FUNCTION campus.money_fee_plan_binding_guard() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE o campus.funding_obligations;p campus.payment_fee_plans;
+BEGIN
+ SELECT * INTO o FROM campus.funding_obligations WHERE id=NEW.obligation_id;SELECT * INTO p FROM campus.payment_fee_plans WHERE id=NEW.plan_id;
+ IF (o.environment_id,o.aggregate_type,o.aggregate_id,o.policy_id,o.source_digest) IS DISTINCT FROM (p.environment_id,p.aggregate_type,p.aggregate_id,p.policy_id,p.source_digest) OR o.amount_cents<>(p.body->'maximumPlan'->'lots'->0->>'chargeTotalCents')::bigint OR o.fee_cents<>(p.body->>'maximumFeeCents')::bigint OR EXISTS(SELECT 1 FROM jsonb_array_elements_text(p.body->'participants')who WHERE NOT EXISTS(SELECT 1 FROM campus.payment_fee_confirmations c WHERE c.plan_id=p.id AND c.user_id=who::uuid AND c.digest=p.digest)) THEN RAISE EXCEPTION 'fee_plan_scope_mismatch' USING ERRCODE='P0001';END IF;RETURN NEW;
+END $$;
+CREATE TRIGGER fee_plan_binding_scope BEFORE INSERT ON campus.payment_fee_plan_bindings FOR EACH ROW EXECUTE FUNCTION campus.money_fee_plan_binding_guard();
+REVOKE ALL ON FUNCTION campus.money_fee_plan_binding_guard() FROM PUBLIC,campus_app,campus_auth,campus_worker;
+ALTER FUNCTION campus.money_projection(text,uuid) RENAME TO money_projection_before_revision_read;
+CREATE FUNCTION campus.money_projection(kind text,resource uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,campus,pg_temp AS $$
+DECLARE result jsonb;o campus.funding_obligations;r campus.payment_fee_revisions;ss campus.payment_fee_revision_settlements;current_evidence boolean;
+BEGIN
+ result:=campus.money_projection_before_revision_read(kind,resource);SELECT * INTO o FROM campus.funding_obligations WHERE aggregate_type=kind AND aggregate_id=resource ORDER BY created_at DESC LIMIT 1;IF o.id IS NULL THEN RETURN result;END IF;
+ SELECT * INTO r FROM campus.payment_fee_revisions WHERE obligation_id=o.id ORDER BY revision DESC LIMIT 1;
+ IF r.id IS NOT NULL THEN
+  SELECT * INTO ss FROM campus.payment_fee_revision_settlements WHERE revision_id=r.id;current_evidence:=ss.evidence=campus.money_fee_evidence(o.id);
+  result:=result||jsonb_build_object('feeRevision',jsonb_build_object('id',r.id,'digest',r.digest,'maximumTotalFeeCents',r.body->>'maximumTotalFeeCents','supplementalAmountCents',r.body->>'supplementalAmountCents','settledActualFeeCents',ss.actual_fee_cents::text,'isCurrentEvidence',coalesce(current_evidence,false)));
+  IF current_evidence THEN result:=result||jsonb_build_object('actualFeeCents',ss.actual_fee_cents::text,'feeVarianceCents',(ss.actual_fee_cents-(result->>'estimatedFeeCents')::bigint)::text);END IF;
+ END IF;
+ IF r.id IS NOT NULL OR EXISTS(SELECT 1 FROM campus.money_active_holds WHERE obligation_id=o.id AND reason IN('fee_cap_reconfirmation_required','later_fee_correction')) THEN result:=result||jsonb_build_object('allowedActions',(result->'allowedActions')||'"review_fee_revision"'::jsonb);END IF;
+ RETURN result;
+END $$;
+REVOKE ALL ON FUNCTION campus.money_projection_before_revision_read(text,uuid),campus.money_projection(text,uuid) FROM PUBLIC,campus_app,campus_auth,campus_worker;
 GRANT EXECUTE ON FUNCTION campus.money_projection(text,uuid) TO campus_app;

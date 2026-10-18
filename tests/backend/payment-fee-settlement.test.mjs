@@ -48,6 +48,16 @@ test('standalone zero stays pending; separate cash and delayed report attributio
   await f.owner.query("INSERT INTO campus.payment_synthetic_fee_closures VALUES($1,$2,$3,$4,'Synthetic: exact retrieved artifact and semantic set only')",[profile,x.env.id,objects.charge.id,JSON.stringify(closure)]);
   await worker.tick();await worker.tick();assert.equal(x.transport.refunds.size,1);assert.equal([...x.transport.refunds.values()][0].amount,15);assert.equal(x.transport.transfers.size,1);assert.equal([...x.transport.transfers.values()][0].amount,9850);assert.equal(await cash(),0);
   await clock.advance(61000);await worker.fees();assert.equal((await f.owner.query('SELECT count(*)::int n FROM campus.payment_fee_cash_facts')).rows[0].n,1);assert.equal((await f.owner.query('SELECT count(*)::int n FROM campus.payment_fee_attributions')).rows[0].n,2);
+  const overlap={...run,id:'frr_overlap_'+key(),parameters:{...run.parameters,interval_start:0,interval_end:3},result:{id:'file_overlap_'+key(),purpose:'finance_report_run'}};
+  x.transport.client.reporting.reportRuns.list=async()=>({data:[overlap,run],has_more:false});
+  x.transport.client.reporting.reportRuns.retrieve=async id=>id===overlap.id?overlap:run;
+  x.transport.client.files.retrieve=async id=>({id,purpose:'finance_report_run',url:'https://files.stripe.com/synthetic_report',size:Buffer.byteLength(csv)});
+  await clock.advance(61000);await worker.fees();
+  assert.equal((await f.owner.query('SELECT count(*)::int n FROM campus.payment_fee_report_artifacts')).rows[0].n,2);
+  assert.equal((await f.owner.query('SELECT count(*)::int n FROM campus.payment_fee_report_memberships')).rows[0].n,4);
+  assert.equal((await f.owner.query('SELECT count(*)::int n FROM campus.payment_fee_cash_facts')).rows[0].n,1);
+  assert.equal((await f.owner.query('SELECT count(*)::int n FROM campus.payment_fee_attributions')).rows[0].n,2);
+  assert.equal(await cash(),0);assert.equal(x.transport.refunds.size,1);assert.equal(x.transport.transfers.size,1);
   // A newer inline profile applies only to newly quoted obligations.
   await f.owner.query("INSERT INTO campus.payment_billing_profiles(environment_id,version,platform_account_id,billing_mode,contract,provenance) VALUES($1,3,$2,'inline',$3,'Synthetic: subsequent old-version inline scenario')",[x.env.id,x.env.platformAccountId,JSON.stringify({kind:'synthetic_original_charge_balance_v1'})]);
   const q=await x.prepare({fee:300});await x.worker.dispatch();const qe=await x.expected(q);x.transport.pay(qe.sessionId,{fee:300});for(let n=0;n<8&&(await f.market.paymentAttempt(q.P,q.a.attemptId)).status!=='succeeded';n++)await worker.reconcile();await x.onboard(q.C);await x.accept(q);await x.sql('SELECT campus.money_prepare_transfers($1,$2) AS result',[x.env.id,q.q.obligationId]);

@@ -10,7 +10,7 @@ export function createPaymentWorker(store, adapter) {
     if (!op) return false;
     try {
       let value;
-      if (op.kind === "checkout") {
+      if (op.kind === "checkout" || op.kind === "fee_supplement_checkout") {
         value = await adapter.createCheckout(op);
         await query(
           "SELECT campus.money_operation_result($1,$2,$3) AS result",
@@ -86,7 +86,7 @@ export function createPaymentWorker(store, adapter) {
         );
       } else throw Error("unsupported_operation");
     } catch (error) {
-      const noEffect=op.kind==='checkout'&&Number(op.fence)===1&&error.type==='StripeInvalidRequestError'&&error.statusCode===400&&['parameter_invalid_integer','parameter_unknown','parameter_missing'].includes(error.code);
+      const noEffect=['checkout','fee_supplement_checkout'].includes(op.kind)&&Number(op.fence)===1&&error.type==='StripeInvalidRequestError'&&error.statusCode===400&&['parameter_invalid_integer','parameter_unknown','parameter_missing'].includes(error.code);
       await query("SELECT campus.money_operation_result($1,$2,$3) AS result", [
         op.id,
         op.fence,
@@ -287,6 +287,10 @@ export function createPaymentWorker(store, adapter) {
         const objects=await adapter.retrieveCheckoutAndPayment(expected.sessionId);
         await post.payment(expected,objects);
         if((objects.session.status==='expired'&&(!objects.intent||objects.intent.status==='canceled'))||(objects.intent?.status==='succeeded'&&objects.balance?.status==='available'&&Number.isSafeInteger(objects.balance.fee)&&await query("SELECT campus.money_attempt_reconciled($1) AS result",[expected.id])))code='done';
+      } else if(job.kind==='fee_supplement') {
+        const expected=await query('SELECT campus.money_fee_supplement_expected($1,$2) AS result',[eid,job.resource_key]);
+        if(!expected)throw Error('dependency_not_ready');
+        if(await post.payment(expected,await adapter.retrieveCheckoutAndPayment(expected.sessionId)))code='done';
       } else if(job.kind==='compensation') {
         const op=await query("SELECT campus.money_find_operation($1,NULL,$2) AS result",[eid,job.resource_key]);
         if(!op?.provider_id)throw Error('dependency_not_ready');
@@ -364,6 +368,7 @@ export function createPaymentWorker(store, adapter) {
         [eid],
       );
       for (const obligationId of targets) {
+        for(const revisionId of await query('SELECT campus.money_fee_revision_targets($1,$2) AS result',[eid,obligationId]))await query('SELECT campus.money_fee_revision_settle($1) AS result',[revisionId]);
         await query("SELECT campus.money_fee_report_close($1,$2) AS result",[eid,obligationId]);
         await query("SELECT campus.money_prepare_restitution($1,$2) AS result",[eid,obligationId]);
         await query(

@@ -1,0 +1,13 @@
+import {z} from 'zod';
+const id=z.uuid(),hash=z.string().regex(/^[a-f0-9]{64}$/),amount=z.number().int().nonnegative().max(100000000);
+export const feeRevisionProposalSchema=z.strictObject({policyVersionId:id,policyDigest:hash,evidenceDigest:hash});
+export const feeRevisionConfirmationSchema=z.strictObject({digest:hash});
+export const feeRevisionStartSchema=z.strictObject({digest:hash,acceptedAmountCents:amount});
+const evidence=z.strictObject({facts:z.array(z.strictObject({identity:z.string(),chargeId:z.string(),balanceId:z.string().nullable(),feeCents:amount.nullable(),verified:z.boolean()})),totalCents:amount,complete:z.boolean()});
+const plan=z.strictObject({format:z.literal('fee_reconfirmation_v1'),obligationId:id,originalSourceDigest:hash,originalChargeId:z.string(),environmentId:id,policyId:id,policyDigest:hash,policyProvenance:z.string(),revision:z.number().int().positive(),participants:z.array(id),payerId:id,originalPlan:z.json(),evidence,supplementalEstimatedFeeCents:amount,maximumTotalFeeCents:amount,maximumPayerFeeCents:amount,maximumRecipientFeeCents:amount,supplementalAmountCents:amount,maximumPlan:z.json(),restoration:z.string()});
+export const feeRevisionReadSchema=z.strictObject({obligationId:id,environmentId:id,policyVersionId:id.nullable(),policyDigest:hash.nullable(),evidence,evidenceDigest:hash,revisionId:id.nullable(),revision:z.number().int().positive().nullable(),digest:hash.nullable(),plan:plan.nullable(),confirmedParticipantIds:z.array(id),state:z.enum(['not_proposed','fee_reconfirmation_required','settled','evidence_changed','unpaid_terminal','awaiting_fee_facts','awaiting_confirmations','awaiting_settlement','ready_to_collect']),allowedActions:z.array(z.enum(['refresh','confirm_fee_revision','start_fee_supplement','open_fee_checkout','propose_fee_revision'])),attempt:z.strictObject({id,operationId:id,status:z.enum(['creating','requires_action','processing','succeeded','unknown','failed','canceled']),hostedUrl:z.url().nullable(),expiresAt:z.string().nullable()}).nullable(),settledActualFeeCents:z.string().regex(/^\d+$/).nullable(),blockedReasons:z.array(z.string())});
+export const feeRevisionResponses={
+ propose:z.strictObject({receipt:z.strictObject({revisionId:id,revision:z.number().int().positive(),digest:hash}),current:feeRevisionReadSchema}),
+ confirm:z.strictObject({receipt:z.strictObject({revisionId:id,participantId:id,digest:hash,confirmed:z.literal(true)}),current:feeRevisionReadSchema}),
+ start:z.strictObject({receipt:z.strictObject({revisionId:id,feeObligationId:id,attemptId:id,operationId:id,amountCents:amount}),current:feeRevisionReadSchema})
+};

@@ -26,6 +26,7 @@ export const unknownFundingSchema = z.strictObject({
 });
 export const knownFundingSchema = z.strictObject({
   obligationId: id,
+  feeRevision: z.strictObject({id,digest:z.string().regex(/^[a-f0-9]{64}$/),maximumTotalFeeCents:cents,supplementalAmountCents:cents,settledActualFeeCents:cents.nullable(),isCurrentEvidence:z.boolean()}).optional(),
   feePlan: feePlanSummarySchema.nullable().optional(),
   paymentRevision: z.number().int().positive(),
   environmentId: id,

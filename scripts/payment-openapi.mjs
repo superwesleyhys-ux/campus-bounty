@@ -1,3 +1,4 @@
+import {feeRevisionProposalSchema,feeRevisionConfirmationSchema,feeRevisionStartSchema,feeRevisionReadSchema,feeRevisionResponses} from '../backend/payments/fee-revision-models.mjs';
 import {feePlanProposalSchema,feePlanConfirmationSchema,feePlanReadSchema,feePlanProposalResponseSchema,feePlanConfirmationResponseSchema} from '../backend/payments/fee-plan-models.mjs';
 import {paymentCommandSchemas} from '../backend/payments/command-models.mjs';
 import {
@@ -27,6 +28,7 @@ export function addPaymentOpenapi(spec) {
     rebase(json);spec.components??={};spec.components.schemas??={};spec.components.schemas[name]=json;return {$ref:'#/components/schemas/'+name};
   }
   const reads = {
+    "/funding-obligations/{id}/fee-revisions": feeRevisionReadSchema,
     "/agreements/{id}/fee-plans": feePlanReadSchema,
     "/orders/{id}/fee-plans": feePlanReadSchema,
     "/agreements/{id}/funding": fundingReadSchema,
@@ -83,6 +85,16 @@ export function addPaymentOpenapi(spec) {
     const name=path.includes('confirmations')?'FeePlanConfirmation':'FeePlanProposal';
     op.requestBody={required:true,content:{'application/json':{schema:component(name+'Request',request)}}};
     op.responses['200']={description:'Exact personal fee consent receipt and freshly authorized plan',content:{'application/json':{schema:component(name+'Response',response)}}};
+  }
+  for(const [path,request,kind,status] of [
+    ['/funding-obligations/{id}/fee-revisions',feeRevisionProposalSchema,'propose','200'],
+    ['/payment-fee-revisions/{id}/confirmations',feeRevisionConfirmationSchema,'confirm','200'],
+    ['/payment-fee-revisions/{id}/payment-attempts',feeRevisionStartSchema,'start','202'],
+  ]){
+    const op=spec.paths['/api/v1'+path]?.post??spec.paths[path]?.post;if(!op)throw Error('Undocumented fee revision '+path);
+    op.requestBody={required:true,content:{'application/json':{schema:component('FeeRevision'+kind+'Request',request)}}};
+    if(status==='202')delete op.responses['200'];
+    op.responses[status]={description:'Exact personally confirmed fee revision receipt and fresh current authority',content:{'application/json':{schema:component('FeeRevision'+kind+'Response',feeRevisionResponses[kind])}}};
   }
   const cancellation =
     spec.paths["/api/v1/orders/{id}/cancellation"]?.post ??
