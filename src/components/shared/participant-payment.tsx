@@ -112,9 +112,10 @@ export function ParticipantPayment({
       <p role="status" aria-live="polite">
         {command.busy ? "Saving your exact request…" : notice}
       </p>
-      {!d.paymentEnabled && (
-        <p className="cb-alert">{reason("payments_unavailable")}</p>
-      )}
+      {!d.paymentEnabled &&
+        !f!.blockedReasons.includes("payments_unavailable") && (
+          <p className="cb-alert">{reason("payments_unavailable")}</p>
+        )}
       {terminalOrder && (
         <p className="cb-alert">
           This reservation is {orderState}. No new payment is offered. Original
@@ -129,9 +130,10 @@ export function ParticipantPayment({
         people={d.people}
         account={account}
       />
-      {d.preparationBlocker && (
-        <p className="cb-alert">{reason(d.preparationBlocker)}</p>
-      )}
+      {d.preparationBlocker &&
+        !f!.blockedReasons.includes(d.preparationBlocker) && (
+          <p className="cb-alert">{reason(d.preparationBlocker)}</p>
+        )}
       {!terminalOrder && !f!.obligationId && (
         <button
           className="cb-button"

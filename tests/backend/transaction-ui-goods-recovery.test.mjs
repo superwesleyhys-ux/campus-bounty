@@ -109,6 +109,11 @@ test("ordinary goods cancellation releases only confirmed unpaid stock and holds
       if (latePaid) x.transport.pay(a.sessionId, { fee: 100, available: true });
       for (let i = 0; i < 5; i++) await x.worker.tick();
       const view = await f.market.orderPayment(s.B, s.o.id);
+      assert(
+        !(
+          await f.market.participantPayment(s.B, "order", s.o.id)
+        ).funding.allowedActions.includes("request_quote"),
+      );
       assert.equal(
         (await f.market.product(s.S, s.product.id)).stock,
         latePaid ? 0 : 1,

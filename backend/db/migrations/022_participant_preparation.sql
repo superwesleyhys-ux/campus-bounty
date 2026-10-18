@@ -465,6 +465,23 @@ BEGIN
  SELECT policy_id INTO pid FROM campus.funding_obligations WHERE id=(funding->>'obligationId')::uuid;
  IF pid IS NULL THEN SELECT p.id INTO pid FROM campus.payment_execution_policies p JOIN campus.payment_environments e ON e.id=p.environment_id AND e.enabled WHERE p.aggregate_type=kind AND p.aggregate_id=resource AND p.purpose='collection' ORDER BY p.version DESC LIMIT 1;
  END IF;
+ -- Renewing a quote on the same unchanged obligation does not replace its policy or lots.
+ -- The accepted pre-fee-plan projection supplies the existing command eligibility;
+ -- require the obligation's exact immutable all-person fee plan as well.
+ IF funding->>'obligationId' IS NOT NULL
+  AND funding->'activeAttempt'='null'::jsonb
+  AND (campus.money_projection_before_fee_plan(kind,resource)->'allowedActions') ? 'request_quote'
+  AND EXISTS(
+   SELECT 1 FROM campus.payment_fee_plan_bindings b
+   JOIN campus.payment_fee_plans p ON p.id=b.plan_id
+   JOIN campus.funding_obligations o ON o.id=b.obligation_id
+   WHERE o.id=(funding->>'obligationId')::uuid AND p.policy_id=o.policy_id
+    AND p.source_digest=o.source_digest
+    AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text(p.body->'participants') who
+     WHERE NOT EXISTS(SELECT 1 FROM campus.payment_fee_confirmations c
+      WHERE c.plan_id=p.id AND c.user_id=who::uuid AND c.digest=p.digest))) THEN
+  funding:=jsonb_set(funding,'{allowedActions}',(funding->'allowedActions')||'"request_quote"'::jsonb);
+ END IF;
  IF funding ? 'feeRevision' THEN
   review:=campus.money_fee_revision_read((funding->>'obligationId')::uuid);
   current_revision:=review->>'state'='settled' AND coalesce((funding#>>'{feeRevision,isCurrentEvidence}')::boolean,false) AND review->>'revisionId'=funding#>>'{feeRevision,id}' AND NOT EXISTS(SELECT 1 FROM campus.payment_fee_evidence_conflicts c WHERE c.environment_id=(funding->>'environmentId')::uuid);

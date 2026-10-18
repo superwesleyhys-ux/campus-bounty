@@ -10,6 +10,8 @@ This repository now includes in-progress transaction and agreement-change work. 
 
 ### Latest development checkpoint — 2026-10-18
 
+Latest snapshot adds an in-progress same-policy, same-obligation expired-quote renewal projection and clearer unavailable-payment notices. Final source-bound checks, natural-expiry browser verification and independent acceptance of this repair are pending; existing command authority and original financial records remain the intended boundary.
+
 The scoped Astra High amendment-money fix1 review returned Spec PASS / Quality PASS and was accepted for its bounded backend/API scope. The participant payment UI is still being implemented and is not independently accepted or deployed.
 
 New local synthetic evidence: fee reconfirmation/supplement now presents the settled current fee separately from historical initial quotes (400-cent combined fee, 5-cent source refund, 9800-cent recipient transfer in one scenario). Team final-completion mode transferred nothing after the first accepted stage, then exactly5970/3980 cents after the last; ordinary history navigation passed. Changed original financial premises visibly block a stale amendment plan and permit a fresh unsigned plan.

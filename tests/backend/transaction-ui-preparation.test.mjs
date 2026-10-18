@@ -65,6 +65,32 @@ test("fresh service application, exact personal consent, preparation, funding qu
       )
     ).receipt;
     assert.equal(q.quote.chargeTotalCents, 10055);
+    const renewable = await f.market.participantPayment(
+      s.P,
+      "agreement",
+      s.g.id,
+    );
+    assert(renewable.funding.allowedActions.includes("request_quote"));
+    const same = await f.market.createAgreementPaymentQuote(
+      s.P,
+      s.g.id,
+      renewable.quoteRequest,
+      key(),
+    );
+    assert.equal(same.receipt.obligationId, q.obligationId);
+    assert.equal(
+      same.receipt.quoteId,
+      q.quoteId,
+      "unexpired exact quote remains the same",
+    );
+    assert.equal(renewable.funding.activeAttempt, null);
+    assert.equal(
+      (
+        await f.market.participantPayment(s.C, "agreement", s.g.id)
+      ).funding.allowedActions.includes("request_quote"),
+      false,
+    );
+
     const prepared = await f.market.preparePaymentRecipient(s.C, {}, key());
     assert.equal(prepared.receipt.userId, s.C);
     const op = await f.market.onboardPaymentAccount(
@@ -78,6 +104,25 @@ test("fresh service application, exact personal consent, preparation, funding qu
     assert.equal(acct.transferCapability, "active");
     assert.equal(acct.operation.operationId, op.receipt.operationId);
     assert.equal(acct.requirements.status, "unknown");
+    await f.market.createPaymentAttempt(
+      s.P,
+      q.obligationId,
+      {
+        quoteId: q.quoteId,
+        quoteDigest: q.quoteDigest,
+        expectedObligationRevision: q.obligationRevision,
+        acceptedAmountCents: q.quote.chargeTotalCents,
+        currency: "USD",
+      },
+      key(),
+    );
+    const active = await f.market.participantPayment(s.P, "agreement", s.g.id);
+    assert(active.funding.activeAttempt);
+    assert(
+      !active.funding.allowedActions.includes("request_quote"),
+      "an active attempt must retain its original recovery path",
+    );
+
     const stranger = await f.user("Stranger");
     await assert.rejects(
       f.market.preparePaymentTerms(stranger, "agreement", s.g.id, {}, key()),
@@ -165,6 +210,7 @@ test("missing configuration, immutable configuration equality, material repricin
       "payment_configuration_changed_existing_intent",
     );
     assert(!current.funding.allowedActions.includes("create_payment_attempt"));
+    assert(!current.funding.allowedActions.includes("request_quote"));
     await assert.rejects(
       f.market.createPaymentAttempt(
         s.P,
@@ -436,6 +482,7 @@ test("disabled runtime preserves status but advertises no new collection or reci
     const v = await disabled.participantPayment(s.P, "agreement", s.g.id);
     assert.equal(v.paymentEnabled, false);
     assert(!v.funding.allowedActions.includes("create_payment_attempt"));
+    assert(!v.funding.allowedActions.includes("request_quote"));
     assert.deepEqual(v.feePlan.allowedActions, []);
     assert.equal((await disabled.paymentAccount(s.C)).paymentEnabled, false);
     await assert.rejects(
