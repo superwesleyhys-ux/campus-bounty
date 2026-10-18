@@ -1,3 +1,4 @@
+import {amendmentMoneyModule} from "./amendment-money.mjs";
 import { paymentModule } from "./payments.mjs";
 import { paymentAllocationModule } from "./payment-allocations.mjs";
 import { agreementAmendmentModule } from "./agreement-amendments.mjs";
@@ -24,6 +25,7 @@ export function createMarket(store, options = {}) {
     ...agreementAmendmentModule(store),
     ...paymentAllocationModule(store),
     ...paymentModule(store, options),
+    ...amendmentMoneyModule(store, options),
   };
   const capabilities = market.capabilities;
   market.capabilities = async (actor) => {

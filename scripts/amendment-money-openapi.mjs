@@ -1,0 +1,9 @@
+import {z} from 'zod';
+import {financialProposalSchema,financialConfirmationSchema,financialExactSchema,financialCancellationSchema,financialReadSchema,financialResponses} from '../backend/modules/amendment-money.mjs';
+export function addAmendmentMoneyOpenapi(spec){
+ function component(name,schema){const json=z.toJSONSchema(schema);const walk=v=>{if(!v||typeof v!=='object')return;for(const [k,x] of Object.entries(v)){if(k==='$ref'&&typeof x==='string'&&x.startsWith('#/'))v[k]='#/components/schemas/'+name+x.slice(1);else walk(x);}};walk(json);spec.components.schemas[name]=json;return {$ref:'#/components/schemas/'+name};}
+ const root='/agreements/{id}/amendments/{amendmentId}/financial-plans';
+ const route=path=>{const op=spec.paths[path];if(!op)throw Error('Missing amendment financial route '+path);return op;};
+ route(root).get.responses['200']={description:'Participant-safe immutable financial plans and current readiness',content:{'application/json':{schema:component('AmendmentFinancialRead',financialReadSchema)}}};
+ for(const [suffix,kind,request] of [['','propose',financialProposalSchema],['/confirmations','confirm',financialConfirmationSchema],['/payment-quotes','quote',financialExactSchema],['/assessments','assess',financialExactSchema],['/activations','activate',financialExactSchema],['/cancellations','cancel',financialCancellationSchema]]){const op=route(root+(suffix?'/'+ '{revision}'+suffix:'')).post;op.requestBody={required:true,content:{'application/json':{schema:component('AmendmentFinancialRequest_'+kind,request)}}};for(const k of Object.keys(op.responses))if(k.startsWith('2'))delete op.responses[k];op.responses[kind==='propose'?'201':'200']={description:'Original receipt and fresh current state; assessed rejection is persisted',content:{'application/json':{schema:component('AmendmentFinancialResponse_'+kind,financialResponses[kind])}}};}
+}

@@ -106,6 +106,8 @@ export async function amendmentSchemaPresent(c) {
   ).rows[0].present;
 }
 const codes = {
+  agreement_not_funded_or_closed: 409,
+  candidate_collection_reserved: 409,
   invalid_input: 422,
   invalid_milestone_budget: 422,
   no_change: 422,

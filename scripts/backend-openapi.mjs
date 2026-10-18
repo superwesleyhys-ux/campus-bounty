@@ -1,3 +1,4 @@
+import {addAmendmentMoneyOpenapi} from "./amendment-money-openapi.mjs";
 import { addPaymentOpenapi } from "./payment-openapi.mjs";
 import { addTransactionTermsOpenapi } from "./transaction-terms-openapi.mjs";
 import {
@@ -1435,6 +1436,7 @@ spec.components.schemas.Notification.required.push("listingContext");
 addAgreementAmendmentOpenapi(spec);
 addTransactionTermsOpenapi(spec);
 addPaymentOpenapi(spec);
+addAmendmentMoneyOpenapi(spec);
 await writeFile(
   new URL("../docs/backend-openapi.json", import.meta.url),
   JSON.stringify(spec, null, 2) + "\n",

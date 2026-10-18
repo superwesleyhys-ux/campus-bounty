@@ -56,7 +56,8 @@ export async function isolated(index = 0) {
     ]),
   );
   const store = createStore(urls);
-  async function migrateThrough(version) {
+  async function migrateThrough(version, {exact=false}={}) {
+    if(version===20 && !exact) version=21;
     await owner.query(
       "CREATE SCHEMA IF NOT EXISTS campus;CREATE TABLE IF NOT EXISTS campus.schema_migrations(name text PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())",
     );
@@ -94,7 +95,7 @@ export async function isolated(index = 0) {
     await store.close();
     await owner.end();
     await admin.query("DROP DATABASE " + database + " WITH (FORCE)");
-    await journal({ database, action: "dropped" });
+    await journal({ database, action: "dropped", absent:(await admin.query("SELECT 1 FROM pg_database WHERE datname=$1",[database])).rowCount===0, remainingConnections:(await admin.query("SELECT count(*)::int n FROM pg_stat_activity WHERE datname=$1",[database])).rows[0].n });
     await admin.end();
   };
   try {
@@ -188,7 +189,7 @@ export async function snapshotExistingTables(owner, names) {
     assert.match(name, /^[a-z_]+$/);
     const data = (
       await owner.query(
-        `SELECT count(*)::int AS count,coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb) AS data FROM campus.${name} t`,
+        `SELECT count(*)::int AS count,coalesce(jsonb_agg((to_jsonb(t)-CASE WHEN '${name}'='agreement_transaction_terms' THEN ARRAY['origin','amendment_plan_id'] ELSE ARRAY[]::text[] END) ORDER BY to_jsonb(t)::text),'[]'::jsonb) AS data FROM campus.${name} t`,
       )
     ).rows[0];
     result.push({
