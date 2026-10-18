@@ -30,10 +30,13 @@ test('fix1 controlled clock: delayed frozen checkout, processing and fee/availab
   await assert.rejects(async()=>disabled.onboardPaymentAccount(s.C,{expectedAccountRevision:1},key()),{code:'payments_unavailable'});
   let read=await disabled.agreementFunding(s.P,s.g.id);assert.ok(read.allowedActions.includes('open_dispute'));
   await disabled.openPaymentDispute(s.P,'agreement',s.g.id,{expectedPaymentRevision:read.paymentRevision,reason:'Participant reporting dispute while side effects disabled'},key());
+  read=await disabled.agreementFunding(s.P,s.g.id);assert.ok(read.allowedActions.includes('request_refund_review'));
+  await disabled.requestPaymentRefund(s.P,'agreement',s.g.id,{obligationId:s.q.obligationId,chargeId:objects.charge.id,expectedPaymentRevision:read.paymentRevision,amountCents:1,reason:'Synthetic review remains available while new side effects disabled',policyVersionId:s.q.quote.policyId},key());
   const gd=await f.market.agreement(s.C,s.g.id),m=gd.milestones[1];
   await assert.rejects(f.market.submitMilestone(s.C,m.id,{expectedVersion:m.version,expectedRevision:m.revision,content:'Must not submit under risk hold',expectedEffectiveTermsId:s.b.terms_id,expectedEffectiveRevision:s.b.terms_revision},key()),{code:'funds_held'});
   const pending=await x.prepare({fee:300});await f.owner.query('UPDATE campus.payment_environments SET enabled=false WHERE id=$1',[x.env.id]);const calls=x.transport.calls.length;await x.worker.dispatch();assert.equal(x.transport.calls.length,calls);
   assert.equal((await f.market.paymentAttempt(pending.P,pending.a.attemptId)).status,'creating');
+  x.transport.balances.set('txn_disabled_incoming',{id:'txn_disabled_incoming',type:'stripe_fee',currency:'usd',amount:-1,fee:0,net:-1,status:'available'});await clock.advance(61000);await x.worker.fees();assert.equal((await f.owner.query("SELECT count(*)::int n FROM campus.payment_fee_cash_facts WHERE balance_id='txn_disabled_incoming'")).rows[0].n,1,'authenticated factual reads remain active while new dispatch is disabled');
  }finally{await f.close();}
 });
 test('fix1 onboarding generations and definitive no effect remain scoped; abandoned lease, retention and retry limits use controlled clock',async()=>{

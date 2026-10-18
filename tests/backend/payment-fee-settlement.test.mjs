@@ -67,3 +67,19 @@ test('standalone zero stays pending; separate cash and delayed report attributio
   const another='txn_factual_'+key();x.transport.balances.set(another,{id:another,type:'stripe_fee',currency:'usd',amount:-10,fee:0,net:-10,status:'available'});await clock.advance(61000);await worker.fees();assert.equal((await f.owner.query('SELECT count(*)::int n FROM campus.payment_fee_cash_facts')).rows[0].n,2,'incoming distinct cash remains recordable under conflict');
  }finally{await f.close();}
 });
+
+test('fee-reserve restitution unknown response reuses key; failed refund cash restoration waits for availability before a new exact refund generation',async()=>{
+ const f=await isolated(0);try{
+  await f.migrateThrough(20);const clock=await controlledMoneyClock(f),x=await paymentFixture(f,clock),s=await x.prepare({cap:true,fee:300});await x.worker.dispatch();const ex=await x.expected(s);
+  const create=x.transport.client.refunds.create;let first=true,lost=true,failedId;
+  x.transport.client.refunds.create=async(p,o)=>{const r=await create(p,o);if(first){first=false;r.status='pending';failedId=r.id;}if(lost){lost=false;throw Error('synthetic lost restitution response');}return r;};
+  x.transport.pay(ex.sessionId,{fee:200});await x.worker.tick();assert.equal(x.transport.refunds.size,1);assert.equal((await f.owner.query("SELECT status FROM campus.money_operations WHERE kind='fee_restitution'")).rows[0].status,'unknown');
+  await clock.advance(31000);await x.worker.dispatch();const calls=x.transport.calls.filter(c=>c.kind==='refund');assert.equal(calls.length,2);assert.equal(calls[0].key,calls[1].key);assert.deepEqual(calls[0].p,calls[1].p);
+  x.transport.failRefund(failedId,{available:false});await clock.advance(61000);for(let n=0;n<4;n++)await x.worker.tick();assert.equal(x.transport.refunds.size,1);assert.equal((await f.owner.query("SELECT status FROM campus.money_reservations WHERE kind='fee_restitution'")).rows[0].status,'reserved');
+  x.transport.failRefund(failedId,{available:true});await clock.advance(3601000);for(let n=0;n<6;n++)await x.worker.tick();assert.equal(x.transport.refunds.size,2);
+  const reservations=(await f.owner.query("SELECT status,cash_debited_cents FROM campus.money_reservations WHERE kind='fee_restitution' ORDER BY status")).rows;assert.deepEqual(reservations.map(x=>x.status),['consumed','released']);
+  assert.equal((await f.owner.query("SELECT sum(debit-credit)::text n FROM campus.ledger_lines WHERE account='publisher_fee_liability'")).rows[0].n,'0');
+  assert.equal((await f.owner.query("SELECT count(*)::int n FROM campus.ledger_journals WHERE source_effect LIKE 'fee_restitution:%'")).rows[0].n,1);
+  await clock.advance(61000);for(let n=0;n<3;n++)await x.worker.tick();assert.equal(x.transport.refunds.size,2);
+ }finally{await f.close();}
+});

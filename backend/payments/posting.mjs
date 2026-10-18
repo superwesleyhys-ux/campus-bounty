@@ -26,7 +26,7 @@ export function createPosting(store) {
     async payment(expected, objects) {
       const fact = reconcilePayment(expected, objects);
       if(expected.feeRevisionId)return store.workerTx(async c=>{
-        const result=(await c.query('SELECT campus.money_fee_supplement_fact($1,$2) AS result',[expected.id,JSON.stringify(fact)])).rows[0].result;
+        const result=(await c.query(expected.inboxId?'SELECT campus.money_record_supplement_inbox($1,$2,$3) AS result':'SELECT campus.money_fee_supplement_fact($1,$2) AS result',expected.inboxId?[expected.id,JSON.stringify(fact),expected.inboxId]:[expected.id,JSON.stringify(fact)])).rows[0].result;
         await c.query("SELECT campus.money_reconcile_schedule($1,'fee_supplement',$2,'{}')",[expected.environmentId,expected.sessionId]);return result;
       });
       if (fact.status === "terminal_unpaid") {

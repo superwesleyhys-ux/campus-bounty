@@ -29039,6 +29039,7 @@
             "type": "string",
             "enum": [
               "not_proposed",
+              "fee_reconfirmation_required",
               "settled",
               "evidence_changed",
               "unpaid_terminal",
@@ -30057,6 +30058,51 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
+              "feeRevision": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "digest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "maximumTotalFeeCents": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  },
+                  "supplementalAmountCents": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  },
+                  "settledActualFeeCents": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "isCurrentEvidence": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "digest",
+                  "maximumTotalFeeCents",
+                  "supplementalAmountCents",
+                  "settledActualFeeCents",
+                  "isCurrentEvidence"
+                ],
+                "additionalProperties": false
+              },
               "feePlan": {
                 "anyOf": [
                   {
@@ -30839,6 +30885,51 @@
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "feeRevision": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "digest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "maximumTotalFeeCents": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  },
+                  "supplementalAmountCents": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  },
+                  "settledActualFeeCents": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "isCurrentEvidence": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "digest",
+                  "maximumTotalFeeCents",
+                  "supplementalAmountCents",
+                  "settledActualFeeCents",
+                  "isCurrentEvidence"
+                ],
+                "additionalProperties": false
               },
               "feePlan": {
                 "anyOf": [
@@ -32110,6 +32201,51 @@
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                   },
+                  "feeRevision": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "digest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "maximumTotalFeeCents": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$"
+                      },
+                      "supplementalAmountCents": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$"
+                      },
+                      "settledActualFeeCents": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]*)$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "isCurrentEvidence": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "digest",
+                      "maximumTotalFeeCents",
+                      "supplementalAmountCents",
+                      "settledActualFeeCents",
+                      "isCurrentEvidence"
+                    ],
+                    "additionalProperties": false
+                  },
                   "feePlan": {
                     "anyOf": [
                       {
@@ -33125,6 +33261,51 @@
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                   },
+                  "feeRevision": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "digest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "maximumTotalFeeCents": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$"
+                      },
+                      "supplementalAmountCents": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$"
+                      },
+                      "settledActualFeeCents": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]*)$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "isCurrentEvidence": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "digest",
+                      "maximumTotalFeeCents",
+                      "supplementalAmountCents",
+                      "settledActualFeeCents",
+                      "isCurrentEvidence"
+                    ],
+                    "additionalProperties": false
+                  },
                   "feePlan": {
                     "anyOf": [
                       {
@@ -33947,6 +34128,51 @@
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "feeRevision": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "digest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "maximumTotalFeeCents": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$"
+                      },
+                      "supplementalAmountCents": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$"
+                      },
+                      "settledActualFeeCents": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]*)$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "isCurrentEvidence": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "digest",
+                      "maximumTotalFeeCents",
+                      "supplementalAmountCents",
+                      "settledActualFeeCents",
+                      "isCurrentEvidence"
+                    ],
+                    "additionalProperties": false
                   },
                   "feePlan": {
                     "anyOf": [
@@ -34952,6 +35178,51 @@
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                   },
+                  "feeRevision": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "digest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "maximumTotalFeeCents": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$"
+                      },
+                      "supplementalAmountCents": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$"
+                      },
+                      "settledActualFeeCents": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]*)$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "isCurrentEvidence": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "digest",
+                      "maximumTotalFeeCents",
+                      "supplementalAmountCents",
+                      "settledActualFeeCents",
+                      "isCurrentEvidence"
+                    ],
+                    "additionalProperties": false
+                  },
                   "feePlan": {
                     "anyOf": [
                       {
@@ -35717,6 +35988,51 @@
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "feeRevision": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "digest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "maximumTotalFeeCents": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$"
+                      },
+                      "supplementalAmountCents": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$"
+                      },
+                      "settledActualFeeCents": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]*)$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "isCurrentEvidence": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "digest",
+                      "maximumTotalFeeCents",
+                      "supplementalAmountCents",
+                      "settledActualFeeCents",
+                      "isCurrentEvidence"
+                    ],
+                    "additionalProperties": false
                   },
                   "feePlan": {
                     "anyOf": [
@@ -37421,6 +37737,7 @@
                 "type": "string",
                 "enum": [
                   "not_proposed",
+                  "fee_reconfirmation_required",
                   "settled",
                   "evidence_changed",
                   "unpaid_terminal",
@@ -37990,6 +38307,7 @@
                 "type": "string",
                 "enum": [
                   "not_proposed",
+                  "fee_reconfirmation_required",
                   "settled",
                   "evidence_changed",
                   "unpaid_terminal",
@@ -38573,6 +38891,7 @@
                 "type": "string",
                 "enum": [
                   "not_proposed",
+                  "fee_reconfirmation_required",
                   "settled",
                   "evidence_changed",
                   "unpaid_terminal",

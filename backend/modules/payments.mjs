@@ -100,7 +100,7 @@ export function paymentModule(store, {paymentEnabled=false}={}) {
     moneySql(c, "SELECT campus.money_projection($1,$2) AS result", [
       kind,
       id,
-    ]).then((r) => {const value=fundingReadSchema.parse(r.rows[0].result);return paymentEnabled?value:{...value,allowedActions:value.allowedActions.filter(a=>['refresh','refresh_attempt','open_dispute','request_refund_review'].includes(a)),blockedReasons:[...new Set([...value.blockedReasons,'payments_unavailable'])]};});
+    ]).then((r) => {const value=fundingReadSchema.parse(r.rows[0].result);return paymentEnabled?value:{...value,allowedActions:value.allowedActions.filter(a=>['refresh','refresh_attempt','open_dispute','request_refund_review','review_fee_revision'].includes(a)),blockedReasons:[...new Set([...value.blockedReasons,'payments_unavailable'])]};});
   async function command(actor, id, input, key, schema, kind, fn) {
     actionAvailable();
     uuid(id);
@@ -160,7 +160,7 @@ export function paymentModule(store, {paymentEnabled=false}={}) {
     proposePaymentFeeRevision:(a,id,d,k)=>feeRevisionCommand(a,id,d,k,'propose'),
     confirmPaymentFeeRevision:(a,id,d,k)=>feeRevisionCommand(a,id,d,k,'confirm'),
     startPaymentFeeSupplement:(a,id,d,k)=>feeRevisionCommand(a,id,d,k,'start'),
-    paymentFeePlan:(actor,kind,id)=>{uuid(id);return read(actor,async c=>feePlanReadSchema.parse((await moneySql(c,'SELECT campus.money_fee_plan_read($1,$2) AS result',[kind,id])).rows[0].result));},
+    paymentFeePlan:(actor,kind,id)=>{uuid(id);return read(actor,async c=>{const value=feePlanReadSchema.parse((await moneySql(c,'SELECT campus.money_fee_plan_read($1,$2) AS result',[kind,id])).rows[0].result);return paymentEnabled?value:{...value,allowedActions:[]};});},
     proposePaymentFeePlan:async(actor,kind,id,input,key)=>{
       actionAvailable();uuid(id);const d=parse(feePlanProposalSchema,input);
       return read(actor,async c=>{await member(c,actor,{write:true});const receipt=await idempotent(c,actor,'payment.fee_plan:'+kind+':'+id,key,d,async()=> (await moneySql(c,'SELECT campus.money_fee_plan_propose($1,$2,$3) AS result',[kind,id,JSON.stringify(d)])).rows[0].result);await member(c,actor,{write:true});return feePlanProposalResponseSchema.parse({receipt,current:(await moneySql(c,'SELECT campus.money_fee_plan_read($1,$2) AS result',[kind,id])).rows[0].result});});

@@ -1,3 +1,4 @@
+import {THIN_EVENTS,SNAPSHOT_EVENTS} from './stripe-payments.mjs';
 import { createPosting } from "../payments/posting.mjs";
 // One tick is bounded. Provider I/O occurs only between short committed database transactions.
 export function createPaymentWorker(store, adapter) {
@@ -102,11 +103,15 @@ export function createPaymentWorker(store, adapter) {
     if (!row) return false;
     let code = "processed";
     try {
+      if(!(row.parser==='thin'?THIN_EVENTS:SNAPSHOT_EVENTS).has(row.event_type)){
+        await query('SELECT campus.money_inbox_finish($1,$2,$3) AS result',[row.id,row.fence,'processed']);return true;
+      }
       if (row.parser === "thin") {
         const notification = await adapter.retrieveThinEvent(
           row.event_id,
           row.payload.context,
         );
+        if(notification.id!==row.event_id||notification.type!==row.event_type||notification.livemode!==(adapter.environment.mode==='live')||(notification.context?.toString()??adapter.environment.platformAccountId)!==row.origin_account)throw Error('provider_scope_mismatch');
         const accountId =
           notification.related_object?.id ?? notification.data?.account_id;
         const targets = await query(
@@ -115,6 +120,7 @@ export function createPaymentWorker(store, adapter) {
         );
         const bound = targets.find((t) => t.accountId === accountId);
         if (!bound) throw Error("thin_account_dependency_not_ready");
+        if(row.origin_account!==adapter.environment.platformAccountId&&row.origin_account!==bound.accountId)throw Error('provider_scope_mismatch');
         await query("SELECT campus.money_observe_account($1,$2,$3) AS result", [
           eid,
           bound.userId,
@@ -322,7 +328,7 @@ export function createPaymentWorker(store, adapter) {
           if(kind==='balances') {
             const b=await adapter.retrieveBalance(item.id);
             if(b.id!==item.id||b.type!=='stripe_fee'||b.currency!=='usd'||![b.amount,b.fee,b.net].every(Number.isSafeInteger)||b.net!==b.amount-b.fee)throw Error('provider_fact_mismatch');
-            if(b.net<0)await query("SELECT campus.money_fee_cash($1,$2) AS result",[eid,JSON.stringify(b)]);
+            if(b.net!==0)await query("SELECT campus.money_fee_cash($1,$2) AS result",[eid,JSON.stringify(b)]);
           } else if(item.report_type==='all_fees.balance_transaction_created.itemized.2')await query("SELECT campus.money_fee_report_schedule($1,$2) AS result",[eid,item.id]);
         }
         cursor=page.has_more?page.data.at(-1).id:null;
