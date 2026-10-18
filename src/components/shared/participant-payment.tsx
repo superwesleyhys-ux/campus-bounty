@@ -227,7 +227,7 @@ export function ParticipantPayment({
       {fp?.plan && (
         <div>
           <h3>
-            {f!.activeAttempt?.status === "succeeded"
+            {terminalOrder || f!.activeAttempt?.status === "succeeded"
               ? "Original fee reserve and personal consent"
               : "Exact fee reserve and personal consent"}
           </h3>
@@ -247,6 +247,9 @@ export function ParticipantPayment({
             share {cents(fp.plan.maximumRecipientFeeCents)}.
           </p>
           <MoneyPlan
+            historical={
+              terminalOrder || f!.activeAttempt?.status === "succeeded"
+            }
             original={fp.plan.originalPlan}
             maximum={fp.plan.maximumPlan}
             people={d.people}

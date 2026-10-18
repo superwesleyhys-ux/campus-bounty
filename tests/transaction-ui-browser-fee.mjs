@@ -150,13 +150,11 @@ async function confirm(p, label) {
 }
 let currentAgreement;
 async function openFees(p) {
-  const d = p
-    .locator("details")
-    .filter({
-      has: p.getByText("Processing fee changes and supplemental reserve", {
-        exact: true,
-      }),
-    });
+  const d = p.locator("details").filter({
+    has: p.getByText("Processing fee changes and supplemental reserve", {
+      exact: true,
+    }),
+  });
   if (!(await d.evaluate((e) => e.open))) await d.locator("summary").click();
   return d;
 }

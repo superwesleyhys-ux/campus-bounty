@@ -221,11 +221,9 @@ try {
   await payer.p
     .getByLabel("Requested refund in USD", { exact: true })
     .fill("1.00");
-  const cases = payer.p
-    .locator("details")
-    .filter({
-      has: payer.p.getByText("Disputes and refund review", { exact: true }),
-    });
+  const cases = payer.p.locator("details").filter({
+    has: payer.p.getByText("Disputes and refund review", { exact: true }),
+  });
   await cases
     .getByLabel("Reason", { exact: true })
     .fill("Synthetic request for independent review");

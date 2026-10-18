@@ -277,7 +277,9 @@ try {
   await waitFor(async () => {
     const d = await api(payer.p, `agreements/${gid}/funding`);
     return (
-      d.coverage === "covered" && d.actualFeeCents === "0" && d.feePlan?.restitutionStatus === "not_required"
+      d.coverage === "covered" &&
+      d.actualFeeCents === "0" &&
+      d.feePlan?.restitutionStatus === "not_required"
     );
   });
   await record(

@@ -210,9 +210,11 @@ try {
       })),
   );
   const buyer = await signIn(
-    names
-      .filter((n) => n.at <= Date.parse(prior[0].at))
-      .sort((a, b) => b.at - a.at)[0].name,
+    names.filter((n) => {
+      const delta =
+        (Date.parse(prior[0].at) % 10000000) - Number(n.name.split("-").at(-1));
+      return delta >= 0 && delta < 10000;
+    })[0].name,
   );
   assert.equal(buyer.id, actorId);
   await buyer.p.goto(
@@ -255,7 +257,35 @@ try {
       order: await api(buyer.p, `orders/${terminal.order.id}`),
     },
   );
-  let messagePosts=0;buyer.p.on('request',r=>{if(r.method()==='POST'&&r.url().includes('/messages'))messagePosts++;});const draft='Unsent synthetic draft survives payment status refresh';await buyer.p.getByLabel('Message',{exact:true}).fill(draft);await click(buyer.p,'Check current payment status');await buyer.p.getByLabel('Message',{exact:true}).waitFor();assert.equal(await buyer.p.getByLabel('Message',{exact:true}).inputValue(),draft);await buyer.p.reload();await buyer.p.getByLabel('Message',{exact:true}).waitFor();assert.equal(await buyer.p.getByLabel('Message',{exact:true}).inputValue(),draft);assert.equal(messagePosts,0);await record('Conversation draft coexists with payment refresh and reload without sending',{messagePosts,draftPreserved:true});await buyer.p.getByRole('heading',{name:'Payment and recipient transfers',exact:true}).scrollIntoViewIfNeeded();
+  let messagePosts = 0;
+  buyer.p.on("request", (r) => {
+    if (r.method() === "POST" && r.url().includes("/messages")) messagePosts++;
+  });
+  const draft = "Unsent synthetic draft survives payment status refresh";
+  await buyer.p.getByLabel("Message", { exact: true }).fill(draft);
+  await click(buyer.p, "Check current payment status");
+  await buyer.p.getByLabel("Message", { exact: true }).waitFor();
+  assert.equal(
+    await buyer.p.getByLabel("Message", { exact: true }).inputValue(),
+    draft,
+  );
+  await buyer.p.reload();
+  await buyer.p.getByLabel("Message", { exact: true }).waitFor();
+  assert.equal(
+    await buyer.p.getByLabel("Message", { exact: true }).inputValue(),
+    draft,
+  );
+  assert.equal(messagePosts, 0);
+  await record(
+    "Conversation draft coexists with payment refresh and reload without sending",
+    { messagePosts, draftPreserved: true },
+  );
+  await buyer.p
+    .getByRole("heading", {
+      name: "Payment and recipient transfers",
+      exact: true,
+    })
+    .scrollIntoViewIfNeeded();
   await buyer.p.screenshot({
     path: fileURLToPath(
       new URL(`browser-attempt${attempt}-loaded-cancelled.png`, evidence),

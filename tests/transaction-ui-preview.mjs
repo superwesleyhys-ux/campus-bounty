@@ -243,7 +243,8 @@ const env = {
   CAMPUS_SMTP_HOST: "127.0.0.1",
   CAMPUS_SMTP_PORT: "2527",
   CAMPUS_MAIL_FROM: "Campus Bounty <noreply@transaction.example.test>",
-  CAMPUS_PAYMENTS_ENABLED: process.env.T2C_SCENARIO_PAYMENTS_DISABLED === "1" ? "0" : "1",
+  CAMPUS_PAYMENTS_ENABLED:
+    process.env.T2C_SCENARIO_PAYMENTS_DISABLED === "1" ? "0" : "1",
   CAMPUS_PAYMENT_ENVIRONMENT_ID: x.env.id,
   CAMPUS_STRIPE_PLATFORM_ACCOUNT_ID: x.env.platformAccountId,
   CAMPUS_PAYMENT_MODE: "sandbox",

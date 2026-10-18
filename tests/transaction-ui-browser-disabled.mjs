@@ -210,7 +210,53 @@ try {
   assert.equal(reserved.status(), 201);
   const order = await reserved.json(),
     url = origin + "/?view=workspace&tab=orders&resource=order&id=" + order.id;
-  await buyer.p.goto(url);await buyer.p.getByText('New payment actions are unavailable in this environment.',{exact:true}).waitFor();assert(await buyer.p.getByRole('button',{name:'Prepare current financial terms',exact:true}).isDisabled());const view=await api(buyer.p,`orders/${order.id}/participant-payment`);assert.equal(view.paymentEnabled,false);assert.equal(view.funding.activeAttempt??null,null);await record('Actual disabled runtime shows blocked initial payment and no attempt',{view,orderId:order.id});await buyer.p.goto(origin+'/?view=account');await buyer.p.getByRole('heading',{name:'Your payment account',exact:true}).waitFor();assert(await buyer.p.getByRole('button',{name:'Prepare my recipient account',exact:true}).isDisabled());assert(await buyer.p.getByRole('button',{name:'Create my recipient account',exact:true}).isDisabled());await record('Own onboarding creation remains disabled in actual runtime',{account:await api(buyer.p,'me/payment-account')});await buyer.p.screenshot({path:fileURLToPath(new URL(`browser-attempt${attempt}-disabled.png`,evidence))});console.log('Actual disabled-runtime payment and onboarding UI passed');
+  await buyer.p.goto(url);
+  await buyer.p
+    .getByText("New payment actions are unavailable in this environment.", {
+      exact: true,
+    })
+    .waitFor();
+  assert(
+    await buyer.p
+      .getByRole("button", {
+        name: "Prepare current financial terms",
+        exact: true,
+      })
+      .isDisabled(),
+  );
+  const view = await api(buyer.p, `orders/${order.id}/participant-payment`);
+  assert.equal(view.paymentEnabled, false);
+  assert.equal(view.funding.activeAttempt ?? null, null);
+  await record(
+    "Actual disabled runtime shows blocked initial payment and no attempt",
+    { view, orderId: order.id },
+  );
+  await buyer.p.goto(origin + "/?view=account");
+  await buyer.p
+    .getByRole("heading", { name: "Your payment account", exact: true })
+    .waitFor();
+  assert(
+    await buyer.p
+      .getByRole("button", {
+        name: "Prepare my recipient account",
+        exact: true,
+      })
+      .isDisabled(),
+  );
+  assert(
+    await buyer.p
+      .getByRole("button", { name: "Create my recipient account", exact: true })
+      .isDisabled(),
+  );
+  await record("Own onboarding creation remains disabled in actual runtime", {
+    account: await api(buyer.p, "me/payment-account"),
+  });
+  await buyer.p.screenshot({
+    path: fileURLToPath(
+      new URL(`browser-attempt${attempt}-disabled.png`, evidence),
+    ),
+  });
+  console.log("Actual disabled-runtime payment and onboarding UI passed");
 } catch (e) {
   for (const [i, c] of browser.contexts().entries())
     for (const [j, p] of c.pages().entries())
