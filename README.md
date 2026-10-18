@@ -8,11 +8,11 @@
 
 This repository now includes in-progress transaction and agreement-change work. Read [current development status](docs/github-development-status.md) before using it. A sync commit is not a release or deployment; real login, payments and final acceptance remain incomplete. Historical verification sections below refer only to their named increments.
 
-### Latest backend checkpoint — 2026-10-17 23:51 PDT
+### Latest backend checkpoint — 2026-10-18
 
-The amendment-money increment is frozen for independent Astra High review. Final checks passed46/46, type checking and isolated build, all bound to one475-file source snapshot. This includes the amendment feature-gate correction, while preserving recovery of already-dispatched unknown payments and late incoming facts. The20 earlier migrations and110 prior evidence artifacts were preserved; disposable test databases were cleaned.
+The independent Astra High amendment-money review returned **Issues found / Needs fixes**. Three Important defects are in the first repair round: incomplete foreign cash coverage, incorrect blocking of unrelated supplemental fees/empty reports, and UUID metadata for integer revision paths. See [current development status](docs/github-development-status.md) for the precise boundary.
 
-This is synthetic provider/closure evidence, not real payment or full-product acceptance. Independent review is pending. Complete payment/recipient onboarding UI, ordinary transaction policy preparation, real email/login/provider integration and production deployment remain unfinished. The development-status document contains earlier checkpoint history; this dated note is the latest validation update. Source has not been deployed.
+The preceding frozen snapshot passed46 checks, type checking and isolated build; these results do not cover the identified counterexamples or certify evolving repair code. Synthetic provider/closure evidence is not real payment acceptance. Complete payment/onboarding UI, ordinary transaction policy preparation, real email/login/provider integration and production deployment remain unfinished. No source has been deployed.
 
 ## 已接通的主要流程
 
